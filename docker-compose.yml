@@ -1,0 +1,45 @@
+services:
+  postgres:
+    image: postgres:17
+    container_name: formulation-ai-postgres
+    environment:
+      POSTGRES_USER: formulation_ai
+      POSTGRES_PASSWORD: formulation_ai
+      POSTGRES_DB: formulation_ai
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - formulation_ai_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U formulation_ai"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: formulation-ai-backend
+    environment:
+      FA_DATABASE_URL: postgresql+psycopg://formulation_ai:formulation_ai@postgres:5432/formulation_ai
+      FA_JWT_SECRET: ${FA_JWT_SECRET:-change-me-in-prod-this-is-for-local-dev-only}
+      FA_CORS_ORIGINS: '["http://localhost:5173","http://127.0.0.1:5173","http://localhost"]'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8000:8000"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: formulation-ai-frontend
+    depends_on:
+      - backend
+    ports:
+      - "127.0.0.1:8080:80"
+
+volumes:
+  formulation_ai_pgdata:

@@ -1,0 +1,50 @@
+[project]
+name = "formulation-ai"
+version = "0.1.0"
+description = "Formulation-AI backend — FastAPI + Postgres"
+authors = [
+    { name = "David J Barnes", email = "david.barnes@employbridge.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "sqlalchemy[asyncio]>=2.0.35",
+    "psycopg[binary,pool]>=3.2",
+    "alembic>=1.14",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "passlib[bcrypt]>=1.7",
+    "python-jose[cryptography]>=3.3",
+    "python-multipart>=0.0.20",
+    "bcrypt<4.0",
+]
+
+[project.scripts]
+formulation-ai = "formulation_ai.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.7",
+    "mypy>=1.13",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/formulation_ai"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

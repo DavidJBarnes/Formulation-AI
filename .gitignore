@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.python-version
+
+# Virtual envs
+.venv/
+venv/
+env/
+
+# Env files
+.env
+.env.local
+.env.*.local
+
+# Node
+node_modules/
+dist/
+*.tsbuildinfo
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project-local settings overrides
+.claude/settings.local.json
