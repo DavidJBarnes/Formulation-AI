@@ -1,8 +1,8 @@
 from logging.config import fileConfig
 
-from alembic import context
 from sqlalchemy import engine_from_config, pool
 
+from alembic import context
 from formulation_ai.config import settings
 from formulation_ai.models import Base  # registers model metadata via models/__init__
 
