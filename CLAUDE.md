@@ -88,7 +88,8 @@ Frontend dev server proxies `/api/*` to `http://127.0.0.1:8000`. In production, 
 
 ## Domain context that isn't in the code
 
-- **Heterogeneity is the hard problem.** Different R&D teams organize formulation data differently across Signals Notebook entities (experiments, notebook entries, embedded tables, attached xlsx). "Aggregated and tabularized" is not a schema — it's an adapter layer. The tabularized shape itself is simple: wide table, one row per tested formulation, N input columns + M output columns.
+- **Signals Notebook has no "formulation" object.** Notebooks are folders, experiments are the primary container, and formulation data spreads across one or many experiments as scattered free text, tables, embedded tables, hierarchy tables, hyperlinks, material library refs, tasks, and steps — "loosely connected SQL database without consistent data-logic-action mapping" (Jun, 2026-04-24). The ingestion adapter is therefore an **AI-assisted per-team mapping wizard with human-in-the-loop confirmation**, not an automatic ETL. Treat it as Phase 2's hardest sub-project; do not depend on it for the MVP demo.
+- **The tabularized shape downstream of the adapter is simple:** wide table, one row per tested formulation, N input columns + M output columns. The complexity is in producing it, not consuming it.
 - **Output contract the optimizer must satisfy:** `(predicted value, 1-sigma uncertainty)` per output per candidate, plus a short rationale. This shape comes from Jun's "Sheet1 predictions" in `experiments/quad-model-proposal/Quad Model.xlsx`.
 - **Results are mostly numerical.** Categorical (including pass/fail) is supported but not the default. Don't model results as booleans.
 - **Jun is openly skeptical that LLMs can do DOE.** The `experiments/quad-model-proposal/` prototype is the concrete answer to that — a one-shot script that demonstrates Claude Opus 4.7 proposing new candidates with honest uncertainty on his synthetic dataset. When engaging Jun on the proposal engine, lead with runnable demos against his data, not architecture slides.
@@ -96,10 +97,10 @@ Frontend dev server proxies `/api/*` to `http://127.0.0.1:8000`. In production, 
 ## Open questions / unknowns
 
 - **Business framing.** "Standalone product via Revvity API" + David pursuing a Revvity hire creates a built-in tension — is this a Revvity-owned product, a partner product, or a net-new offering David is pitching? Answer affects branding, pricing, customer ownership. Still unresolved.
-- **MVP slice.** Portfolio + DOE loop + ingestion adapter + LLM engine is too much for a first demo. The opinionated MVP is **the project-level DOE loop with one hardcoded Signals adapter + one read-only portfolio screen** — nail that before adding breadth.
+- **MVP slice (revised 2026-04-24 after Jun's round 2).** **Project-level DOE loop + CSV/Excel upload (no Signals adapter for the demo) + portfolio screen with 3 chart types (Gantt, scatter, heatmap).** Shippable in 2–3 weeks. The Signals adapter — an AI-assisted per-team mapping wizard — is its own Phase 2 build.
 - **Cost/latency at scale.** Opus 4.7 proposals work great on 9 points. At portfolio scale (5–10 projects × N iterations × K candidates each), cost and latency haven't been scoped.
-- Three open clarifying questions to Jun (tracked in project memory): Signals entity types that house formulation data, anomaly-threshold approach for step 6, and the portfolio-reporting visual Jun wants.
+- **Three round-3 questions to Jun** (project memory): MVP-skips-Signals confirmation; chart picks (Gantt/scatter/heatmap); adapter business model — self-serve with AI vs Revvity-implementation-service.
 
 ## Current state
 
-Initial scaffold committed. Auth plumbing is in but no product features yet — **do not start building features until Jun's next response closes the open questions and we've picked the MVP slice.** The Quad Model audition prototype runs end-to-end.
+Initial scaffold committed and deployed. Auth plumbing is live at https://formulationai.davidjbarnes.com. The Quad Model audition prototype (`experiments/quad-model-proposal/`) runs end-to-end. **MVP slice picked (see above) — feature work can start when David greenlights it.**
