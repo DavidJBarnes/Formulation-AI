@@ -42,13 +42,16 @@ export function LoginPage() {
         <p className="mt-1 text-sm text-muted-foreground">Formulation-AI</p>
 
         <label className="mt-6 block text-sm font-medium text-foreground">
-          Email
+          Username
           <input
-            type="email"
+            type="text"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
             autoFocus
+            autoComplete="username"
+            spellCheck={false}
+            autoCapitalize="off"
             className="mt-1 block w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
           />
         </label>
