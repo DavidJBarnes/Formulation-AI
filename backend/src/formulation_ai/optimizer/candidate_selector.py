@@ -12,7 +12,6 @@ from scipy.optimize import minimize
 
 from formulation_ai.optimizer.acquisition import evaluate
 from formulation_ai.optimizer.gp_model import GPModel
-from formulation_ai.optimizer.scaler import Scaler
 
 
 @dataclass
@@ -25,19 +24,23 @@ class Candidate:
 
 def select_candidates(
     gp: GPModel,
-    x_scaler: Scaler,
     n_ingredients: int,
     n_candidates: int,
     y_best: float,
-    bounds_scaled: list[tuple[float, float]],  # per-ingredient (lo, hi) in scaled space
-    batch_constraint: float | None = None,      # scaled sum target if batch_total_g set
+    bounds_scaled: list[tuple[float, float]],
+    # Linear sum constraint in scaled space: x @ coeffs == rhs
+    # Derived from batch_total_g: coeffs=span_arr, rhs=batch_total - sum(lo)
+    batch_constraint: tuple[np.ndarray, float] | None = None,
     acq: str = "ei",
     kappa: float = 2.0,
     xi: float = 0.01,
     n_restarts: int = 5,
     random_seed: int | None = None,
+    # Already-chosen candidates to avoid (Kriging Believer deduplication)
+    already_selected: list[np.ndarray] | None = None,
 ) -> list[Candidate]:
     rng = np.random.default_rng(random_seed)
+    tried: list[np.ndarray] = list(already_selected) if already_selected else []
 
     def neg_acq(x: np.ndarray) -> float:
         x2d = x.reshape(1, -1)
@@ -47,20 +50,17 @@ def select_candidates(
 
     constraints = []
     if batch_constraint is not None:
-        # sum of scaled ingredients should equal the scaled batch total
+        coeffs, rhs = batch_constraint
         constraints.append({
             "type": "eq",
-            "fun": lambda x: np.sum(x) - batch_constraint,
+            "fun": lambda x: float(np.dot(x, coeffs)) - rhs,
         })
 
     results: list[Candidate] = []
-    tried: list[np.ndarray] = []
-
-    attempts = n_candidates * n_restarts
+    attempts = max(n_candidates * n_restarts, n_restarts)
     starts = rng.uniform(0, 1, size=(attempts, n_ingredients))
 
     for x0 in starts:
-        # Clip to bounds
         x0 = np.clip(x0, [b[0] for b in bounds_scaled], [b[1] for b in bounds_scaled])
         res = minimize(
             neg_acq,
@@ -74,7 +74,6 @@ def select_candidates(
             continue
         x_opt = res.x
 
-        # Deduplicate: skip if too close to an already-chosen point
         if any(np.linalg.norm(x_opt - t) < 0.05 for t in tried):
             continue
 
