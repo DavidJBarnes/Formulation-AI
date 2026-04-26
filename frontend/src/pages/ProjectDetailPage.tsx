@@ -6,6 +6,7 @@ import {
   Brain,
   CheckCircle2,
   Clock,
+  FlaskConical,
   Loader2,
   Sparkles,
   Target,
@@ -768,10 +769,7 @@ function ProposalCard({
             <p className="mt-2 text-sm font-semibold text-foreground">Iteration {formulation.iteration} candidate</p>
           </div>
           {formulation.model_used && (
-            <div className="flex items-center gap-1 text-brand">
-              <Brain className="h-4 w-4" />
-              <span className="text-[10px] font-semibold uppercase tracking-wider">{formulation.model_used}</span>
-            </div>
+            <ModelBadge modelUsed={formulation.model_used} />
           )}
         </div>
       </div>
@@ -902,6 +900,25 @@ function FormulationTable({
         ))}
       </tbody>
     </table>
+  )
+}
+
+function ModelBadge({ modelUsed }: { modelUsed: string }) {
+  const isGP = modelUsed.startsWith('GP/')
+  return (
+    <div className={cn(
+      'flex items-center gap-1 rounded-full px-2 py-0.5',
+      isGP
+        ? 'bg-violet-100 text-violet-700'
+        : 'bg-brand-muted/60 text-brand',
+    )}>
+      {isGP
+        ? <FlaskConical className="h-3 w-3" />
+        : <Brain className="h-3 w-3" />}
+      <span className="text-[10px] font-semibold uppercase tracking-wider">
+        {isGP ? 'Bayesian GP' : modelUsed}
+      </span>
+    </div>
   )
 }
 

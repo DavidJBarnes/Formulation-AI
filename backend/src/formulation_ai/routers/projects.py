@@ -541,6 +541,16 @@ def run_iteration(
         batch_total_g=project.batch_total_g,
     )
 
+    gp_active = (
+        settings.optimizer_backend == "gp_sklearn"
+        and len(tested_payload) >= settings.optimizer_min_observations
+    )
+    model_label = (
+        f"GP/{settings.optimizer_backend} · {settings.anthropic_model}"
+        if gp_active
+        else settings.anthropic_model
+    )
+
     try:
         proposals = run_proposal(req)
     except Exception as exc:
@@ -554,7 +564,7 @@ def run_iteration(
             label=proposal.label,
             kind="proposed",
             rationale=proposal.rationale,
-            model_used=settings.anthropic_model,
+            model_used=model_label,
         )
         db.add(form)
         db.flush()
