@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from formulation_ai.config import settings
 from formulation_ai.routers import auth as auth_router
+from formulation_ai.routers import ingredients as ingredients_router
 
 
 def create_app() -> FastAPI:
@@ -25,6 +26,7 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(auth_router.router)
+    app.include_router(ingredients_router.router)
 
     @app.get("/health")
     def health():

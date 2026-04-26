@@ -1,5 +1,6 @@
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
+  FlaskConical,
   HelpCircle,
   LayoutDashboard,
   LogOut,
@@ -25,6 +26,7 @@ import { useAuth } from '@/lib/auth'
 const nav = [
   { to: '/', label: 'Portfolio', icon: LayoutDashboard, end: true },
   { to: '/upload', label: 'New Project', icon: Upload },
+  { to: '/ingredients', label: 'Ingredients', icon: FlaskConical },
 ]
 
 const secondaryNav = [
@@ -129,6 +131,7 @@ export function AppShell() {
 function Breadcrumb() {
   const { pathname } = useLocation()
   if (pathname === '/') return <span className="hidden md:inline text-muted-foreground/60">Portfolio overview</span>
+  if (pathname === '/ingredients') return <span className="hidden md:inline text-foreground font-medium">Ingredients</span>
   if (pathname === '/upload') return (
     <span className="hidden md:inline">
       <span className="text-muted-foreground/60">Portfolio</span>
