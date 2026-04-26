@@ -1,4 +1,4 @@
-"""LLM-powered formulation proposal engine (Phase 1)."""
+"""Formulation proposal engine — dispatches to LLM or GP backend."""
 
 from __future__ import annotations
 
@@ -23,12 +23,29 @@ class ProposedFormulation:
 class ProposalRequest:
     project_name: str
     iteration_n: int
-    ingredients: list[dict]   # [{name, unit, min, max}]
-    targets: list[dict]       # [{property, unit, goal, reference}]
-    base_products: list[dict] # [{label, ingredients, properties}]
-    tested: list[dict]        # [{label, iteration, ingredients, properties}]
+    ingredients: list[dict]    # [{name, unit, min, max}]
+    targets: list[dict]        # [{property, unit, goal, reference, weight}]
+    base_products: list[dict]  # [{label, ingredients, properties}]
+    tested: list[dict]         # [{label, iteration, ingredients, properties}]
     n_candidates: int = 3
+    batch_total_g: float | None = None
 
+
+def run_proposal(req: ProposalRequest) -> list[ProposedFormulation]:
+    """Dispatch to GP or LLM backend based on settings and available data."""
+    use_gp = (
+        settings.optimizer_backend == "gp_sklearn"
+        and len(req.tested) >= settings.optimizer_min_observations
+    )
+    if use_gp:
+        from formulation_ai.optimizer.gp_proposal import run_gp_proposal
+        return run_gp_proposal(req)
+    return _run_llm_proposal(req)
+
+
+# ---------------------------------------------------------------------------
+# LLM-only backend (Phase 1)
+# ---------------------------------------------------------------------------
 
 _SYSTEM = """\
 You are a chemistry formulation DOE expert. \
@@ -105,8 +122,7 @@ def _fmt_formulations(formulations: list[dict], label: str) -> str:
     return "\n".join(rows)
 
 
-def run_proposal(req: ProposalRequest) -> list[ProposedFormulation]:
-    """Call the LLM and return parsed candidate formulations."""
+def _run_llm_proposal(req: ProposalRequest) -> list[ProposedFormulation]:
     api_key = settings.anthropic_api_key
     client = anthropic.Anthropic(api_key=api_key) if api_key else anthropic.Anthropic()
 
@@ -128,21 +144,16 @@ def run_proposal(req: ProposalRequest) -> list[ProposedFormulation]:
     )
 
     raw = response.content[0].text.strip()
-    # Strip any accidental markdown fencing
     raw = re.sub(r"^```(?:json)?\s*", "", raw)
     raw = re.sub(r"\s*```$", "", raw)
 
     data = json.loads(raw)
-    candidates = data["candidates"]
-
-    results: list[ProposedFormulation] = []
-    for c in candidates:
-        results.append(
-            ProposedFormulation(
-                label=c["label"],
-                rationale=c.get("rationale", ""),
-                ingredients=c["ingredients"],
-                predictions=c["predictions"],
-            )
+    return [
+        ProposedFormulation(
+            label=c["label"],
+            rationale=c.get("rationale", ""),
+            ingredients=c["ingredients"],
+            predictions=c["predictions"],
         )
-    return results
+        for c in data["candidates"]
+    ]

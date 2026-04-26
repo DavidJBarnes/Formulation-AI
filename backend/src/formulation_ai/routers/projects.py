@@ -501,6 +501,7 @@ def run_iteration(
             "unit": tgt.output_property.default_unit or "",
             "goal": tgt.goal,
             "reference": tgt.reference_label,
+            "weight": tgt.weight,
         }
         for tgt in sorted(project.targets, key=lambda x: x.sort_order)
     ]
@@ -537,6 +538,7 @@ def run_iteration(
         base_products=base_payload,
         tested=tested_payload,
         n_candidates=n_candidates,
+        batch_total_g=project.batch_total_g,
     )
 
     try:

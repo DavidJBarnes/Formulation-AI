@@ -56,6 +56,7 @@ class ProjectTarget(Base):
     goal: Mapped[str] = mapped_column(String(64), nullable=False)
     reference_label: Mapped[str | None] = mapped_column(String(256))
     sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    weight: Mapped[float] = mapped_column(Float, default=1.0, nullable=False)
 
     project: Mapped[Project] = relationship(back_populates="targets")
     output_property: Mapped[OutputProperty] = relationship(back_populates="project_targets")

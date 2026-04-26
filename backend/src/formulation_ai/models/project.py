@@ -5,7 +5,7 @@ import uuid
 from datetime import date
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Date, ForeignKey, Integer, String, Text
+from sqlalchemy import Date, Float, ForeignKey, Integer, String, Text
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -52,6 +52,7 @@ class Project(Base, TimestampMixin):
     started_at: Mapped[date | None] = mapped_column(Date)
     ends_at: Mapped[date | None] = mapped_column(Date)
     max_iterations: Mapped[int] = mapped_column(Integer, default=6, nullable=False)
+    batch_total_g: Mapped[float | None] = mapped_column(Float)
     flag_note: Mapped[str | None] = mapped_column(Text)
 
     portfolio: Mapped[Portfolio] = relationship(back_populates="projects")
