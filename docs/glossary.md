@@ -20,7 +20,7 @@ The top-level view. A single R&D team's full collection of active and completed
 portfolio surface shows Gantt timelines, objective trajectories, and targets-met
 heatmaps across all projects at once.
 
-### Project  _(also: Program)_
+### Project
 A single formulation development effort with a defined goal and timeline (typically
 6–18 months). A project has:
 - One or more *Base Products* as the starting point
@@ -28,8 +28,7 @@ A single formulation development effort with a defined goal and timeline (typica
 - A sequence of *Iterations* that run the *DOE inner loop*
 - A *Status* (Planning → Iterating → Converged | Flagged)
 
-"Project" and "Program" are used interchangeably in conversation; the codebase
-uses "project" exclusively.
+"Project" is the canonical term everywhere — UI, codebase, and conversation.
 
 ### Iteration
 One full cycle of the DOE inner loop within a project:

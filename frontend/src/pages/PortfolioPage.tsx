@@ -38,7 +38,7 @@ export function PortfolioPage() {
             R&D project portfolio
           </h1>
           <p className="mt-1.5 max-w-2xl text-sm text-muted-foreground">
-            Active formulation programs across the team. Closed-loop optimization runs an
+            Active formulation projects across the team. Closed-loop optimization runs an
             inner DOE loop per project and rolls progress up here.
           </p>
         </div>
@@ -60,7 +60,7 @@ export function PortfolioPage() {
 
       {/* Stat tiles */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatTile label="Active programs" value={stats.total} accent="brand" hint={`${stats.iterating} iterating`} />
+        <StatTile label="Active projects" value={stats.total} accent="brand" hint={`${stats.iterating} iterating`} />
         <StatTile label="Converged" value={stats.converged} accent="emerald" hint="targets met" />
         <StatTile label="Data flags" value={stats.flagged} accent="amber" hint="proposed vs actual gap" />
         <StatTile label="Iterations run" value={stats.totalIters} accent="violet" hint="across portfolio" />
@@ -130,7 +130,7 @@ export function PortfolioPage() {
               <CardTitle className="text-base">All projects</CardTitle>
               <CardDescription>Click any row to enter the project's DOE loop.</CardDescription>
             </div>
-            <span className="text-xs text-muted-foreground">{portfolioProjects.length} programs</span>
+            <span className="text-xs text-muted-foreground">{portfolioProjects.length} projects</span>
           </div>
         </CardHeader>
         <CardContent className="p-0">
