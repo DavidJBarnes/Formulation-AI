@@ -40,13 +40,17 @@ build-backend = "hatchling.build"
 packages = ["src/formulation_ai"]
 
 [tool.ruff]
-line-length = 100
+line-length = 130
 target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
 # B008: FastAPI idiom — Depends() / Body() / Query() in default args is correct.
 ignore = ["B008"]
+
+[tool.ruff.lint.per-file-ignores]
+# Migration files have unavoidably long sa.Column lines with FK + ondelete args.
+"alembic/versions/*.py" = ["E501"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
