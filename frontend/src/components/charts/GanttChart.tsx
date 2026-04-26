@@ -22,8 +22,17 @@ const STATUS_STROKE: Record<PortfolioProject['status'], string> = {
 }
 
 export function GanttChart({ projects, className }: GanttChartProps) {
+  // Only render projects that have valid start and end dates
+  const validProjects = projects.filter((p) => p.startedAt && p.endsAt)
+
   const { domainStart, domainEnd, monthTicks } = useMemo(() => {
-    const dates = projects.flatMap((p) => [new Date(p.startedAt), new Date(p.endsAt)])
+    if (validProjects.length === 0) {
+      const now = new Date()
+      const start = new Date(now.getFullYear(), now.getMonth(), 1)
+      const end = new Date(now.getFullYear(), now.getMonth() + 6, 1)
+      return { domainStart: start, domainEnd: end, monthTicks: [] }
+    }
+    const dates = validProjects.flatMap((p) => [new Date(p.startedAt), new Date(p.endsAt)])
     const minMs = Math.min(...dates.map((d) => d.getTime()))
     const maxMs = Math.max(...dates.map((d) => d.getTime()))
     const start = new Date(minMs)
@@ -37,14 +46,14 @@ export function GanttChart({ projects, className }: GanttChartProps) {
       cursor.setMonth(cursor.getMonth() + 1)
     }
     return { domainStart: start, domainEnd: end, monthTicks: ticks }
-  }, [projects])
+  }, [validProjects])
 
   const width = 760
   const rowHeight = 28
   const labelWidth = 200
   const chartWidth = width - labelWidth - 16
-  const height = projects.length * rowHeight + 32
-  const today = new Date('2026-04-24').getTime()
+  const height = Math.max(validProjects.length, 1) * rowHeight + 32
+  const today = new Date().getTime()
 
   const xFor = (d: Date) => {
     const t = (d.getTime() - domainStart.getTime()) / (domainEnd.getTime() - domainStart.getTime())
@@ -96,8 +105,14 @@ export function GanttChart({ projects, className }: GanttChartProps) {
         today
       </text>
 
+      {validProjects.length === 0 && (
+        <text x={width / 2} y={height / 2} textAnchor="middle" className="fill-muted-foreground text-[12px]">
+          No projects with scheduled dates yet.
+        </text>
+      )}
+
       {/* Rows */}
-      {projects.map((p, i) => {
+      {validProjects.map((p, i) => {
         const y = 24 + i * rowHeight
         const x1 = xFor(new Date(p.startedAt))
         const x2 = xFor(new Date(p.endsAt))
