@@ -136,23 +136,55 @@ export function ProjectDetailPage() {
   const [project, setProject] = useState<ProjectDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [selectedIter, setSelectedIter] = useState<number | null>(null)
 
   useEffect(() => {
     if (!id) return
     apiFetch<ApiProjectDetail>(`/projects/${id}`)
-      .then((data) => setProject(adaptProjectDetail(data)))
+      .then((data) => {
+        const adapted = adaptProjectDetail(data)
+        setProject(adapted)
+        setSelectedIter(adapted.iteration || (adapted.iterations[0]?.n ?? null))
+      })
       .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load'))
       .finally(() => setLoading(false))
   }, [id])
 
+  // Count proposed/tested candidates per iteration from actual formulation data
+  const iterStats = useMemo(() => {
+    if (!project) return {} as Record<number, { proposed: number; tested: number }>
+    const stats: Record<number, { proposed: number; tested: number }> = {}
+    for (const f of project.proposed) {
+      if (!stats[f.iteration]) stats[f.iteration] = { proposed: 0, tested: 0 }
+      stats[f.iteration].proposed++
+    }
+    for (const f of project.tested) {
+      if (!stats[f.iteration]) stats[f.iteration] = { proposed: 0, tested: 0 }
+      stats[f.iteration].tested++
+    }
+    return stats
+  }, [project])
+
+  // Formulations scoped to the selected iteration
+  const selectedProposed = useMemo(
+    () => (project?.proposed ?? []).filter((f) => f.iteration === selectedIter),
+    [project, selectedIter],
+  )
+  const selectedTested = useMemo(
+    () => (project?.tested ?? []).filter((f) => f.iteration === selectedIter),
+    [project, selectedIter],
+  )
+
   const targetEval = useMemo(() => {
     if (!project) return []
-    const referenceProperty = (name: string) =>
-      project.baseProducts
-        .find((b) => b.label.includes('Paint A'))
-        ?.properties.find((p) => p.name === name)
     return project.targets.map((t) => {
-      const ref = referenceProperty(t.property)?.value ?? null
+      // Find the reference base product by matching reference label
+      const refProduct = t.reference
+        ? (project.baseProducts.find((b) => b.label === t.reference) ??
+           project.baseProducts.find((b) => b.label.toLowerCase().includes(t.reference!.toLowerCase())))
+        : project.baseProducts[0]
+      const ref = refProduct?.properties.find((p) => p.name === t.property)?.value ?? null
+      // Latest tested value across all iterations (overall status tiles)
       const lastTested = [...project.tested]
         .reverse()
         .find((f) => f.properties.some((p) => p.name === t.property))
@@ -228,11 +260,11 @@ export function ProjectDetailPage() {
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="text-base">Iteration timeline</CardTitle>
-              <CardDescription>The DOE inner loop, 3 → 6 cycles.</CardDescription>
+              <CardDescription>
+                Click an iteration to view its proposals and results.
+              </CardDescription>
             </div>
-            <ObjectiveSpark
-              series={project.iterations.map((it) => it.bestObjective)}
-            />
+            <ObjectiveSpark series={project.iterations.map((it) => it.bestObjective)} />
           </div>
         </CardHeader>
         <CardContent className="py-6">
@@ -242,6 +274,10 @@ export function ProjectDetailPage() {
                 key={it.n}
                 iteration={it}
                 isLast={idx === project.iterations.length - 1}
+                isSelected={selectedIter === it.n}
+                proposedCount={iterStats[it.n]?.proposed ?? 0}
+                testedCount={iterStats[it.n]?.tested ?? 0}
+                onSelect={() => setSelectedIter(it.n)}
               />
             ))}
             <PendingIterationCard nextN={project.iterations.length + 1} max={project.maxIterations} />
@@ -249,16 +285,25 @@ export function ProjectDetailPage() {
         </CardContent>
       </Card>
 
-      {/* Proposals + tested formulations */}
+      {/* Proposals + tested formulations — scoped to selectedIter */}
       <Tabs defaultValue="proposals" className="w-full">
         <TabsList>
           <TabsTrigger value="proposals" className="gap-1.5">
             <Brain className="h-3.5 w-3.5" />
-            AI proposals · I{project.iteration}
+            {selectedIter != null ? `AI proposals · I${selectedIter}` : 'AI proposals'}
+            {selectedProposed.length > 0 && (
+              <Badge variant="muted" className="ml-1 text-[9px]">{selectedProposed.length}</Badge>
+            )}
           </TabsTrigger>
           <TabsTrigger value="tested" className="gap-1.5">
             <Beaker className="h-3.5 w-3.5" />
-            Tested formulations
+            {selectedIter != null ? `Tested · I${selectedIter}` : 'Tested formulations'}
+            {selectedTested.length > 0 && (
+              <Badge variant="muted" className="ml-1 text-[9px]">{selectedTested.length}</Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="all-tested" className="gap-1.5">
+            All tested
           </TabsTrigger>
           <TabsTrigger value="base" className="gap-1.5">
             Base products
@@ -266,19 +311,47 @@ export function ProjectDetailPage() {
         </TabsList>
 
         <TabsContent value="proposals">
-          <div className="grid gap-4 lg:grid-cols-3">
-            {project.proposed.map((f) => (
-              <ProposalCard
-                key={f.id}
-                formulation={f}
-                targets={project.targets}
-                ingredients={project.ingredients}
-              />
-            ))}
-          </div>
+          {selectedProposed.length === 0 ? (
+            <div className="flex h-32 items-center justify-center rounded-xl border border-dashed text-sm text-muted-foreground">
+              {selectedIter != null
+                ? `No proposals for I${selectedIter} yet.`
+                : 'Select an iteration above.'}
+            </div>
+          ) : (
+            <div className="grid gap-4 lg:grid-cols-3">
+              {selectedProposed.map((f) => (
+                <ProposalCard
+                  key={f.id}
+                  formulation={f}
+                  targets={project.targets}
+                  ingredients={project.ingredients}
+                />
+              ))}
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="tested">
+          {selectedTested.length === 0 ? (
+            <div className="flex h-32 items-center justify-center rounded-xl border border-dashed text-sm text-muted-foreground">
+              {selectedIter != null
+                ? `No lab results logged for I${selectedIter} yet.`
+                : 'Select an iteration above.'}
+            </div>
+          ) : (
+            <Card className="border-border/70 shadow-sm">
+              <CardContent className="overflow-x-auto p-0">
+                <FormulationTable
+                  formulations={selectedTested}
+                  targets={project.targets}
+                  ingredients={project.ingredients}
+                />
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        <TabsContent value="all-tested">
           <Card className="border-border/70 shadow-sm">
             <CardContent className="overflow-x-auto p-0">
               <FormulationTable
@@ -403,7 +476,21 @@ function TargetTile({
   )
 }
 
-function IterationCard({ iteration, isLast }: { iteration: Iteration; isLast: boolean }) {
+function IterationCard({
+  iteration,
+  isLast,
+  isSelected,
+  proposedCount,
+  testedCount,
+  onSelect,
+}: {
+  iteration: Iteration
+  isLast: boolean
+  isSelected: boolean
+  proposedCount: number
+  testedCount: number
+  onSelect: () => void
+}) {
   const Icon = iteration.status === 'done' ? CheckCircle2 : iteration.status === 'in-progress' ? Clock : Beaker
   const tone =
     iteration.status === 'done'
@@ -412,30 +499,35 @@ function IterationCard({ iteration, isLast }: { iteration: Iteration; isLast: bo
       ? 'border-brand/30 bg-brand-muted/60 text-brand'
       : 'border-border bg-card text-muted-foreground'
   return (
-    <div className={cn('relative w-44 shrink-0 rounded-xl border p-3', tone)}>
+    <button
+      onClick={onSelect}
+      className={cn(
+        'relative w-44 shrink-0 rounded-xl border p-3 text-left transition-all',
+        tone,
+        isSelected
+          ? 'ring-2 ring-brand ring-offset-1 shadow-md'
+          : 'hover:shadow-sm hover:brightness-95',
+      )}
+    >
       <div className="flex items-center justify-between">
         <span className="text-xs font-semibold uppercase tracking-wider">I{iteration.n}</span>
         <Icon className="h-3.5 w-3.5" />
       </div>
-      {iteration.date && (
-        <p className="mt-1 text-[11px] opacity-80">{iteration.date}</p>
-      )}
       <p className="mt-3 text-[10px] uppercase tracking-wider opacity-70">Best objective</p>
       <p className="text-xl font-semibold tabular-nums text-foreground">
-        {Math.round(iteration.bestObjective * 100)}%
+        {iteration.bestObjective > 0 ? `${Math.round(iteration.bestObjective * 100)}%` : '—'}
       </p>
-      {iteration.candidates > 0 && (
-        <p className="mt-1.5 text-[11px] text-muted-foreground">
-          {iteration.candidates} candidate{iteration.candidates === 1 ? '' : 's'}
-        </p>
-      )}
+      <div className="mt-1.5 flex gap-2 text-[11px] text-muted-foreground">
+        {proposedCount > 0 && <span>{proposedCount} proposed</span>}
+        {testedCount > 0 && <span>{testedCount} tested</span>}
+      </div>
       {iteration.note && (
-        <p className="mt-2 text-[11px] italic text-muted-foreground">{iteration.note}</p>
+        <p className="mt-2 text-[11px] italic text-muted-foreground leading-snug">{iteration.note}</p>
       )}
       {!isLast && (
         <span className="absolute -right-2 top-1/2 hidden h-px w-3 -translate-y-1/2 bg-border md:block" />
       )}
-    </div>
+    </button>
   )
 }
 
