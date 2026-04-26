@@ -148,15 +148,17 @@ export function ProjectDetailPage() {
   const [logError, setLogError] = useState<string | null>(null)
   const [runningIteration, setRunningIteration] = useState(false)
 
+  const refreshProject = async (selectIter?: number) => {
+    if (!id) return
+    const data = await apiFetch<ApiProjectDetail>(`/projects/${id}`)
+    const adapted = adaptProjectDetail(data)
+    setProject(adapted)
+    setSelectedIter(selectIter ?? adapted.iteration ?? adapted.iterations[0]?.n ?? null)
+  }
+
   useEffect(() => {
     if (!id) return
-    apiFetch<ApiProjectDetail>(`/projects/${id}`)
-      .then((data) => {
-        const adapted = adaptProjectDetail(data)
-        setProject(adapted)
-        setSelectedIter(adapted.iteration || (adapted.iterations[0]?.n ?? null))
-      })
-      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load'))
+    refreshProject().catch((e) => setError(e instanceof Error ? e.message : 'Failed to load'))
       .finally(() => setLoading(false))
   }, [id])
 
@@ -207,12 +209,8 @@ export function ProjectDetailPage() {
     if (!project || !id) return
     setRunningIteration(true)
     try {
-      const updated = await apiFetch<ApiProjectDetail>(`/projects/${id}/run-iteration`, {
-        method: 'POST',
-      })
-      const adapted = adaptProjectDetail(updated)
-      setProject(adapted)
-      setSelectedIter(adapted.iteration)
+      await apiFetch(`/projects/${id}/run-iteration`, { method: 'POST' })
+      await refreshProject()
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Failed to run iteration')
     } finally {
@@ -254,11 +252,11 @@ export function ProjectDetailPage() {
       return
     }
     try {
-      const updated = await apiFetch<ApiProjectDetail>(`/projects/${id}/log-results`, {
+      await apiFetch(`/projects/${id}/log-results`, {
         method: 'POST',
         body: { iteration_n: selectedIter, results },
       })
-      setProject(adaptProjectDetail(updated))
+      await refreshProject(selectedIter ?? undefined)
       setLogSheetOpen(false)
     } catch (e) {
       setLogError(e instanceof Error ? e.message : 'Failed to submit')
@@ -696,7 +694,7 @@ function PendingIterationCard({ nextN, max, isRunning }: { nextN: number; max: n
   if (nextN > max) return null
   return (
     <div className={cn(
-      'flex w-44 shrink-0 flex-col items-start justify-between rounded-xl border border-dashed p-3',
+      'flex w-44 shrink-0 flex-col items-start rounded-xl border border-dashed p-3',
       isRunning
         ? 'border-brand/40 bg-brand-muted/30 text-brand'
         : 'border-border bg-card/50 text-muted-foreground',
@@ -708,12 +706,10 @@ function PendingIterationCard({ nextN, max, isRunning }: { nextN: number; max: n
       <p className="mt-3 text-[11px] leading-snug">
         {isRunning
           ? 'AI is generating proposals…'
-          : `Waiting for I${nextN - 1} results.`}
+          : nextN === 1
+            ? 'Click "Run first iteration" to start.'
+            : `Log I${nextN - 1} results first.`}
       </p>
-      <Button variant="outline" size="sm" className="mt-3 w-full" disabled>
-        <Sparkles className="h-3 w-3" />
-        Propose
-      </Button>
     </div>
   )
 }
