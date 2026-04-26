@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowUpRight, Beaker, FlaskConical, Sparkles, TrendingUp } from 'lucide-react'
+import { ArrowUpRight, FlaskConical, Sparkles, TrendingUp } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -42,20 +42,12 @@ export function PortfolioPage() {
             inner DOE loop per project and rolls progress up here.
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" asChild>
-            <Link to="/projects/paint-low-voc">
-              <Beaker className="h-4 w-4" />
-              Open featured project
-            </Link>
-          </Button>
-          <Button asChild>
-            <Link to="/upload">
-              <Sparkles className="h-4 w-4" />
-              Start new project
-            </Link>
-          </Button>
-        </div>
+        <Button asChild>
+          <Link to="/upload">
+            <Sparkles className="h-4 w-4" />
+            Start new project
+          </Link>
+        </Button>
       </div>
 
       {/* Stat tiles */}
@@ -226,7 +218,7 @@ function ChartFrame({
 }: {
   title: string
   blurb: string
-  icon: typeof Beaker
+  icon: typeof FlaskConical
   children: React.ReactNode
 }) {
   return (

@@ -1,7 +1,5 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
-  Beaker,
-  Compass,
   HelpCircle,
   LayoutDashboard,
   LogOut,
@@ -26,9 +24,7 @@ import { useAuth } from '@/lib/auth'
 
 const nav = [
   { to: '/', label: 'Portfolio', icon: LayoutDashboard, end: true },
-  { to: '/projects/paint-low-voc', label: 'Active Project', icon: Beaker },
   { to: '/upload', label: 'New Project', icon: Upload },
-  { to: '/explore', label: 'Explore', icon: Compass, disabled: true },
 ]
 
 const secondaryNav = [
@@ -83,9 +79,7 @@ export function AppShell() {
         <div className="flex min-w-0 flex-1 flex-col">
           <header className="flex h-16 shrink-0 items-center gap-4 border-b bg-card px-6">
             <div className="flex flex-1 items-center gap-3 text-sm text-muted-foreground">
-              <span className="hidden md:inline">
-                Closed-loop optimization · DOE inner loop 3→6 · {new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
-              </span>
+              <Breadcrumb />
             </div>
             <Badge variant="muted" className="hidden md:inline-flex">
               v0.1 · preview
@@ -132,6 +126,26 @@ export function AppShell() {
   )
 }
 
+function Breadcrumb() {
+  const { pathname } = useLocation()
+  if (pathname === '/') return <span className="hidden md:inline text-muted-foreground/60">Portfolio overview</span>
+  if (pathname === '/upload') return (
+    <span className="hidden md:inline">
+      <span className="text-muted-foreground/60">Portfolio</span>
+      <span className="mx-2 text-muted-foreground/40">/</span>
+      <span className="text-foreground font-medium">New project</span>
+    </span>
+  )
+  if (pathname.startsWith('/projects/')) return (
+    <span className="hidden md:inline">
+      <NavLink to="/" className="text-muted-foreground/60 hover:text-foreground transition-colors">Portfolio</NavLink>
+      <span className="mx-2 text-muted-foreground/40">/</span>
+      <span className="text-foreground font-medium">Project</span>
+    </span>
+  )
+  return null
+}
+
 function NavItem({
   to,
   label,
@@ -141,7 +155,7 @@ function NavItem({
 }: {
   to: string
   label: string
-  icon: typeof Beaker
+  icon: typeof LayoutDashboard
   end?: boolean
   disabled?: boolean
 }) {
