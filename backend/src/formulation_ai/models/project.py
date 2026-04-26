@@ -40,6 +40,7 @@ class Project(Base, TimestampMixin):
     owner_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL")
     )
+    owner_name: Mapped[str | None] = mapped_column(String(256))
     name: Mapped[str] = mapped_column(String(256), nullable=False)
     domain: Mapped[str | None] = mapped_column(String(128))
     team: Mapped[str | None] = mapped_column(String(128))

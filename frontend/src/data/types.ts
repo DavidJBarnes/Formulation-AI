@@ -1,5 +1,12 @@
 export type ProjectStatus = 'iterating' | 'converged' | 'flagged' | 'planning'
 
+export interface IterationSummary {
+  n: number
+  best_objective: number | null
+  status: string
+  note?: string | null
+}
+
 export interface PortfolioProject {
   id: string
   name: string
@@ -13,6 +20,7 @@ export interface PortfolioProject {
   targetsMet: number
   targetsTotal: number
   domain: string
+  iterations?: IterationSummary[]
 }
 
 export interface Target {

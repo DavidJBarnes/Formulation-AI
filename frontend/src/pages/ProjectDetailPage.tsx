@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -15,16 +15,138 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { StatusBadge } from '@/components/StatusBadge'
-import { paintProject } from '@/data/fixtures'
-import type { Formulation, Target as TTarget } from '@/data/types'
+import { apiFetch } from '@/lib/api'
+import type { Formulation, Iteration, ProjectDetail, Target as TTarget } from '@/data/types'
 import { cn } from '@/lib/utils'
 
+// ---------------------------------------------------------------------------
+// API response shape (snake_case)
+// ---------------------------------------------------------------------------
+interface ApiFormulation {
+  id: string
+  label: string
+  kind: 'base' | 'tested' | 'proposed'
+  iteration_n: number | null
+  rationale?: string | null
+  flagged: boolean
+  ingredients: Record<string, number>
+  properties: { name: string; unit: string | null; value: number; sigma?: number | null }[]
+}
+
+interface ApiIterationSummary {
+  n: number
+  best_objective: number | null
+  status: string
+  note?: string | null
+}
+
+interface ApiProjectDetail {
+  id: string
+  name: string
+  team: string | null
+  owner_name: string | null
+  status: string
+  started_at: string | null
+  ends_at: string | null
+  domain: string | null
+  current_iteration: number
+  max_iterations: number
+  targets_met: number
+  targets_total: number
+  flag_note?: string | null
+  iterations: ApiIterationSummary[]
+  ingredients: { name: string; unit: string | null; min_amount?: number | null; max_amount?: number | null }[]
+  targets: { property_name: string; unit: string | null; goal: string; reference_label?: string | null }[]
+  base_products: ApiFormulation[]
+  tested: ApiFormulation[]
+  proposed: ApiFormulation[]
+}
+
+// ---------------------------------------------------------------------------
+// Adapter: API → frontend types
+// ---------------------------------------------------------------------------
+function adaptFormulation(f: ApiFormulation): Formulation {
+  return {
+    id: f.id,
+    label: f.label,
+    kind: f.kind,
+    iteration: f.iteration_n ?? 0,
+    rationale: f.rationale ?? undefined,
+    flagged: f.flagged,
+    ingredients: f.ingredients,
+    properties: f.properties.map((p) => ({
+      name: p.name,
+      unit: p.unit ?? '',
+      value: p.value,
+      sigma: p.sigma ?? undefined,
+    })),
+  }
+}
+
+function adaptIterationStatus(status: string): Iteration['status'] {
+  if (status === 'in_progress') return 'in-progress'
+  if (status === 'done') return 'done'
+  return 'queued'
+}
+
+function adaptProjectDetail(api: ApiProjectDetail): ProjectDetail {
+  return {
+    id: api.id,
+    name: api.name,
+    team: api.team ?? '',
+    owner: api.owner_name ?? '',
+    status: api.status as ProjectDetail['status'],
+    domain: api.domain ?? '',
+    startedAt: api.started_at ?? '',
+    endsAt: api.ends_at ?? '',
+    iteration: api.current_iteration,
+    maxIterations: api.max_iterations,
+    flagNote: api.flag_note ?? undefined,
+    ingredients: api.ingredients.map((i) => ({
+      name: i.name,
+      unit: i.unit ?? '',
+      min: i.min_amount ?? undefined,
+      max: i.max_amount ?? undefined,
+    })),
+    targets: api.targets.map((t) => ({
+      property: t.property_name,
+      unit: t.unit ?? '',
+      goal: t.goal,
+      reference: t.reference_label ?? undefined,
+    })),
+    iterations: api.iterations.map((it) => ({
+      n: it.n,
+      date: '',
+      candidates: 0,
+      bestObjective: it.best_objective ?? 0,
+      status: adaptIterationStatus(it.status),
+      note: it.note ?? undefined,
+    })),
+    baseProducts: api.base_products.map(adaptFormulation),
+    tested: api.tested.map(adaptFormulation),
+    proposed: api.proposed.map(adaptFormulation),
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Page component
+// ---------------------------------------------------------------------------
 export function ProjectDetailPage() {
-  // Single fixture for now; routing param reserved for future multi-project support.
-  useParams<{ id: string }>()
-  const project = paintProject
+  const { id } = useParams<{ id: string }>()
+  const [project, setProject] = useState<ProjectDetail | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!id) return
+    apiFetch<ApiProjectDetail>(`/projects/${id}`)
+      .then((data) => setProject(adaptProjectDetail(data)))
+      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load'))
+      .finally(() => setLoading(false))
+  }, [id])
 
   const targetEval = useMemo(() => {
+    if (!project) return []
     const referenceProperty = (name: string) =>
       project.baseProducts
         .find((b) => b.label.includes('Paint A'))
@@ -38,6 +160,22 @@ export function ProjectDetailPage() {
       return { target: t, ref, latest, met: evaluateGoal(t.goal, latest, ref) }
     })
   }, [project])
+
+  if (loading) {
+    return (
+      <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">
+        Loading…
+      </div>
+    )
+  }
+
+  if (error || !project) {
+    return (
+      <div className="flex h-64 items-center justify-center text-sm text-destructive">
+        {error ?? 'Project not found'}
+      </div>
+    )
+  }
 
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-6 px-6 py-8">
@@ -265,7 +403,7 @@ function TargetTile({
   )
 }
 
-function IterationCard({ iteration, isLast }: { iteration: typeof paintProject.iterations[number]; isLast: boolean }) {
+function IterationCard({ iteration, isLast }: { iteration: Iteration; isLast: boolean }) {
   const Icon = iteration.status === 'done' ? CheckCircle2 : iteration.status === 'in-progress' ? Clock : Beaker
   const tone =
     iteration.status === 'done'
@@ -279,14 +417,18 @@ function IterationCard({ iteration, isLast }: { iteration: typeof paintProject.i
         <span className="text-xs font-semibold uppercase tracking-wider">I{iteration.n}</span>
         <Icon className="h-3.5 w-3.5" />
       </div>
-      <p className="mt-1 text-[11px] opacity-80">{iteration.date}</p>
+      {iteration.date && (
+        <p className="mt-1 text-[11px] opacity-80">{iteration.date}</p>
+      )}
       <p className="mt-3 text-[10px] uppercase tracking-wider opacity-70">Best objective</p>
       <p className="text-xl font-semibold tabular-nums text-foreground">
         {Math.round(iteration.bestObjective * 100)}%
       </p>
-      <p className="mt-1.5 text-[11px] text-muted-foreground">
-        {iteration.candidates} candidate{iteration.candidates === 1 ? '' : 's'}
-      </p>
+      {iteration.candidates > 0 && (
+        <p className="mt-1.5 text-[11px] text-muted-foreground">
+          {iteration.candidates} candidate{iteration.candidates === 1 ? '' : 's'}
+        </p>
+      )}
       {iteration.note && (
         <p className="mt-2 text-[11px] italic text-muted-foreground">{iteration.note}</p>
       )}

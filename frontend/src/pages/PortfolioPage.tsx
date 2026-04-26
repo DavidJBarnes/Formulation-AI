@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowUpRight, FlaskConical, Sparkles, TrendingUp } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -8,23 +8,83 @@ import { GanttChart } from '@/components/charts/GanttChart'
 import { ScatterChart } from '@/components/charts/ScatterChart'
 import { Heatmap } from '@/components/charts/Heatmap'
 import { StatusBadge } from '@/components/StatusBadge'
-import {
-  heatmapCols,
-  heatmapRows,
-  heatmapValues,
-  portfolioProjects,
-  portfolioScatter,
-} from '@/data/fixtures'
+import { apiFetch } from '@/lib/api'
+import type { PortfolioProject } from '@/data/types'
+
+// Shape returned by GET /projects (snake_case from API)
+interface ApiProjectListItem {
+  id: string
+  name: string
+  team: string | null
+  owner_name: string | null
+  status: string
+  started_at: string | null
+  ends_at: string | null
+  domain: string | null
+  current_iteration: number
+  max_iterations: number
+  targets_met: number
+  targets_total: number
+  iterations: { n: number; best_objective: number | null; status: string; note?: string | null }[]
+}
 
 export function PortfolioPage() {
-  const stats = useMemo(() => {
-    const total = portfolioProjects.length
-    const iterating = portfolioProjects.filter((p) => p.status === 'iterating').length
-    const converged = portfolioProjects.filter((p) => p.status === 'converged').length
-    const flagged = portfolioProjects.filter((p) => p.status === 'flagged').length
-    const totalIters = portfolioProjects.reduce((s, p) => s + p.iteration, 0)
-    return { total, iterating, converged, flagged, totalIters }
+  const [projects, setProjects] = useState<PortfolioProject[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    apiFetch<ApiProjectListItem[]>('/projects')
+      .then((data) =>
+        setProjects(
+          data.map((p) => ({
+            id: p.id,
+            name: p.name,
+            team: p.team ?? '',
+            owner: p.owner_name ?? '',
+            status: p.status as PortfolioProject['status'],
+            startedAt: p.started_at ?? '',
+            endsAt: p.ends_at ?? '',
+            iteration: p.current_iteration,
+            maxIterations: p.max_iterations,
+            targetsMet: p.targets_met,
+            targetsTotal: p.targets_total,
+            domain: p.domain ?? '',
+            iterations: p.iterations,
+          })),
+        ),
+      )
+      .catch(console.error)
+      .finally(() => setLoading(false))
   }, [])
+
+  const stats = useMemo(() => {
+    const total = projects.length
+    const iterating = projects.filter((p) => p.status === 'iterating').length
+    const converged = projects.filter((p) => p.status === 'converged').length
+    const flagged = projects.filter((p) => p.status === 'flagged').length
+    const totalIters = projects.reduce((s, p) => s + p.iteration, 0)
+    return { total, iterating, converged, flagged, totalIters }
+  }, [projects])
+
+  const portfolioScatter = useMemo(
+    () =>
+      projects.flatMap((p) =>
+        (p.iterations ?? [])
+          .filter((i) => i.best_objective != null)
+          .map((i) => ({ project: p.name, iteration: i.n, objective: i.best_objective as number })),
+      ),
+    [projects],
+  )
+
+  const heatmapRows = projects.map((p) => p.name)
+  const heatmapCols = ['Target Progress', 'Iteration Progress', 'No Flags', 'Overall']
+  const heatmapValues = projects.map((p) => {
+    const targetPct = p.targetsTotal > 0 ? p.targetsMet / p.targetsTotal : 0
+    const iterPct = p.maxIterations > 0 ? p.iteration / p.maxIterations : 0
+    const noFlag = p.status === 'flagged' ? 0.2 : 1.0
+    const overall = (targetPct + iterPct + noFlag) / 3
+    return [targetPct, iterPct, noFlag, overall]
+  })
 
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-6 px-6 py-8">
@@ -77,40 +137,46 @@ export function PortfolioPage() {
           </Tabs>
         </CardHeader>
         <CardContent className="pt-6">
-          <Tabs defaultValue="timeline">
-            <TabsList className="md:hidden">
-              <TabsTrigger value="timeline">Timeline</TabsTrigger>
-              <TabsTrigger value="trajectory">Trajectory</TabsTrigger>
-              <TabsTrigger value="targets">Targets met</TabsTrigger>
-            </TabsList>
-            <TabsContent value="timeline" className="mt-0">
-              <ChartFrame
-                title="Project timelines"
-                blurb="Bars show planned span; fill shows iterations completed. Dashed line is today."
-                icon={TrendingUp}
-              >
-                <GanttChart projects={portfolioProjects} />
-              </ChartFrame>
-            </TabsContent>
-            <TabsContent value="trajectory" className="mt-0">
-              <ChartFrame
-                title="Objective trajectory"
-                blurb="Each project's normalized objective per iteration. Steeper is better."
-                icon={TrendingUp}
-              >
-                <ScatterChart points={portfolioScatter} />
-              </ChartFrame>
-            </TabsContent>
-            <TabsContent value="targets" className="mt-0">
-              <ChartFrame
-                title="Targets met by axis"
-                blurb="Where each project sits against its primary KPI, cost, sustainability, and quality goals."
-                icon={FlaskConical}
-              >
-                <Heatmap rows={heatmapRows} cols={heatmapCols} values={heatmapValues} />
-              </ChartFrame>
-            </TabsContent>
-          </Tabs>
+          {loading ? (
+            <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
+              Loading…
+            </div>
+          ) : (
+            <Tabs defaultValue="timeline">
+              <TabsList className="md:hidden">
+                <TabsTrigger value="timeline">Timeline</TabsTrigger>
+                <TabsTrigger value="trajectory">Trajectory</TabsTrigger>
+                <TabsTrigger value="targets">Targets met</TabsTrigger>
+              </TabsList>
+              <TabsContent value="timeline" className="mt-0">
+                <ChartFrame
+                  title="Project timelines"
+                  blurb="Bars show planned span; fill shows iterations completed. Dashed line is today."
+                  icon={TrendingUp}
+                >
+                  <GanttChart projects={projects} />
+                </ChartFrame>
+              </TabsContent>
+              <TabsContent value="trajectory" className="mt-0">
+                <ChartFrame
+                  title="Objective trajectory"
+                  blurb="Each project's normalized objective per iteration. Steeper is better."
+                  icon={TrendingUp}
+                >
+                  <ScatterChart points={portfolioScatter} />
+                </ChartFrame>
+              </TabsContent>
+              <TabsContent value="targets" className="mt-0">
+                <ChartFrame
+                  title="Targets met by axis"
+                  blurb="Where each project sits against its primary KPI, cost, sustainability, and quality goals."
+                  icon={FlaskConical}
+                >
+                  <Heatmap rows={heatmapRows} cols={heatmapCols} values={heatmapValues} />
+                </ChartFrame>
+              </TabsContent>
+            </Tabs>
+          )}
         </CardContent>
       </Card>
 
@@ -122,7 +188,7 @@ export function PortfolioPage() {
               <CardTitle className="text-base">All projects</CardTitle>
               <CardDescription>Click any row to enter the project's DOE loop.</CardDescription>
             </div>
-            <span className="text-xs text-muted-foreground">{portfolioProjects.length} projects</span>
+            <span className="text-xs text-muted-foreground">{projects.length} projects</span>
           </div>
         </CardHeader>
         <CardContent className="p-0">
@@ -139,7 +205,7 @@ export function PortfolioPage() {
               </tr>
             </thead>
             <tbody>
-              {portfolioProjects.map((p) => (
+              {projects.map((p) => (
                 <tr key={p.id} className="group border-t hover:bg-muted/40">
                   <td className="px-6 py-3">
                     <Link
