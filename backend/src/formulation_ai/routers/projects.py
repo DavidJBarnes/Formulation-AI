@@ -2,27 +2,45 @@ from __future__ import annotations
 
 import re
 import uuid
+from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from formulation_ai.auth import get_current_user
 from formulation_ai.db import get_db
-from formulation_ai.models import User
-from formulation_ai.models.formulation import Formulation
-from formulation_ai.models.ingredient import ProjectIngredient
-from formulation_ai.models.output_property import ProjectTarget
-from formulation_ai.models.project import Project
+from formulation_ai.models import (
+    Formulation,
+    FormulationIngredient,
+    FormulationProperty,
+    Ingredient,
+    OutputProperty,
+    Portfolio,
+    Project,
+    ProjectIngredient,
+    ProjectStatus,
+    ProjectTarget,
+    User,
+)
 from formulation_ai.schemas.project import (
     FormulationRead,
     IngredientSpec,
     IterationSummary,
+    ParsedIngredientOut,
+    ParsedProductOut,
+    ParsedPropertyOut,
+    ParsedTargetOut,
+    ParsedUploadResponse,
     ProjectDetail,
     ProjectListItem,
     PropertyMeasurement,
     TargetSpec,
 )
+from formulation_ai.services.xlsx_parser import parse_xlsx
+
+_SAMPLE_PATH = Path(__file__).parent.parent.parent.parent.parent / "docs/upload-template/paint-example.xlsx"
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -234,6 +252,165 @@ def list_projects(
     )
     projects = db.scalars(stmt).all()
     return [_project_to_list_item(p) for p in projects]
+
+
+@router.get("/sample-xlsx")
+def get_sample_xlsx(_: User = Depends(get_current_user)) -> FileResponse:
+    if not _SAMPLE_PATH.exists():
+        raise HTTPException(status_code=404, detail="sample file not found")
+    return FileResponse(
+        path=str(_SAMPLE_PATH),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        filename="paint-example.xlsx",
+    )
+
+
+@router.post("/parse-upload", response_model=ParsedUploadResponse)
+async def parse_upload(
+    file: UploadFile = File(...),
+    _: User = Depends(get_current_user),
+) -> ParsedUploadResponse:
+    data = await file.read()
+    try:
+        parsed = parse_xlsx(data)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return ParsedUploadResponse(
+        ingredients=[ParsedIngredientOut(name=i.name, unit=i.unit) for i in parsed.ingredients],
+        properties=[ParsedPropertyOut(name=p.name, unit=p.unit) for p in parsed.properties],
+        base_products=[
+            ParsedProductOut(label=bp.label, ingredients=bp.ingredients, properties=bp.properties)
+            for bp in parsed.base_products
+        ],
+        targets=[
+            ParsedTargetOut(property_name=t.property_name, goal=t.goal, reference_label=t.reference_label)
+            for t in parsed.targets
+        ],
+    )
+
+
+@router.post("/upload", response_model=ProjectDetail, status_code=201)
+async def upload_project(
+    file: UploadFile = File(...),
+    name: str = Form(...),
+    team: str = Form(""),
+    domain: str = Form(""),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ProjectDetail:
+    data = await file.read()
+    try:
+        parsed = parse_xlsx(data)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    # Ensure a portfolio exists
+    portfolio = db.scalar(select(Portfolio))
+    if not portfolio:
+        portfolio = Portfolio(name="R&D Portfolio")
+        db.add(portfolio)
+        db.flush()
+
+    # Create project
+    project = Project(
+        portfolio_id=portfolio.id,
+        owner_id=current_user.id,
+        owner_name=current_user.full_name or current_user.email,
+        name=name.strip(),
+        team=team.strip() or None,
+        domain=domain.strip() or None,
+        status=ProjectStatus.planning,
+        max_iterations=6,
+    )
+    db.add(project)
+    db.flush()
+
+    # Get-or-create global ingredients, create project_ingredients
+    name_to_pi: dict[str, ProjectIngredient] = {}
+    for sort_i, ing in enumerate(parsed.ingredients):
+        global_ing = db.scalar(select(Ingredient).where(Ingredient.name == ing.name))
+        if not global_ing:
+            global_ing = Ingredient(name=ing.name, default_unit=ing.unit)
+            db.add(global_ing)
+            db.flush()
+        pi = ProjectIngredient(
+            project_id=project.id,
+            ingredient_id=global_ing.id,
+            unit=ing.unit,
+            sort_order=sort_i,
+        )
+        db.add(pi)
+        db.flush()
+        name_to_pi[ing.name] = pi
+
+    # Get-or-create global output properties
+    name_to_op: dict[str, OutputProperty] = {}
+    for prop in parsed.properties:
+        op = db.scalar(select(OutputProperty).where(OutputProperty.name == prop.name))
+        if not op:
+            op = OutputProperty(name=prop.name, default_unit=prop.unit)
+            db.add(op)
+            db.flush()
+        name_to_op[prop.name] = op
+
+    # Create project targets (from Targets sheet only)
+    name_to_pt: dict[str, ProjectTarget] = {}
+    for sort_i, tgt in enumerate(parsed.targets):
+        op = name_to_op.get(tgt.property_name)
+        if op is None:
+            # Target references a property not in Products sheet — create the output_property anyway
+            op = db.scalar(select(OutputProperty).where(OutputProperty.name == tgt.property_name))
+            if not op:
+                op = OutputProperty(name=tgt.property_name, default_unit=None)
+                db.add(op)
+                db.flush()
+            name_to_op[tgt.property_name] = op
+        pt = ProjectTarget(
+            project_id=project.id,
+            output_property_id=op.id,
+            goal=tgt.goal,
+            reference_label=tgt.reference_label,
+            sort_order=sort_i,
+        )
+        db.add(pt)
+        db.flush()
+        name_to_pt[tgt.property_name] = pt
+
+    # Create base formulations with ingredients and properties
+    for bp in parsed.base_products:
+        form = Formulation(
+            project_id=project.id,
+            label=bp.label,
+            kind="base",
+            iteration_id=None,
+        )
+        db.add(form)
+        db.flush()
+
+        for ing_name, amount in bp.ingredients.items():
+            pi = name_to_pi.get(ing_name)
+            if pi is None:
+                continue
+            db.add(FormulationIngredient(
+                formulation_id=form.id,
+                project_ingredient_id=pi.id,
+                amount=amount,
+            ))
+
+        for prop_name, value in bp.properties.items():
+            pt = name_to_pt.get(prop_name)
+            if pt is None:
+                continue
+            db.add(FormulationProperty(
+                formulation_id=form.id,
+                project_target_id=pt.id,
+                value=value,
+            ))
+
+    db.commit()
+
+    # Return full project detail by reusing the GET handler
+    return get_project(project.id, db, current_user)
 
 
 @router.get("/{project_id}", response_model=ProjectDetail)

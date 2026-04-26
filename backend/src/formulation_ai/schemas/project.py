@@ -70,3 +70,35 @@ class ProjectDetail(ProjectListItem):
     base_products: list[FormulationRead] = []
     tested: list[FormulationRead] = []
     proposed: list[FormulationRead] = []
+
+
+# Upload / parse responses
+
+
+class ParsedIngredientOut(BaseModel):
+    name: str
+    unit: str | None
+
+
+class ParsedPropertyOut(BaseModel):
+    name: str
+    unit: str | None
+
+
+class ParsedProductOut(BaseModel):
+    label: str
+    ingredients: dict[str, float] = {}
+    properties: dict[str, float] = {}
+
+
+class ParsedTargetOut(BaseModel):
+    property_name: str
+    goal: str
+    reference_label: str | None = None
+
+
+class ParsedUploadResponse(BaseModel):
+    ingredients: list[ParsedIngredientOut]
+    properties: list[ParsedPropertyOut]
+    base_products: list[ParsedProductOut]
+    targets: list[ParsedTargetOut]

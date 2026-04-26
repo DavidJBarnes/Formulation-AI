@@ -5,7 +5,6 @@ import {
   LayoutDashboard,
   LogOut,
   Settings,
-  Upload,
   UserRound,
 } from 'lucide-react'
 import { Logo } from '@/components/Logo'
@@ -25,7 +24,6 @@ import { useAuth } from '@/lib/auth'
 
 const nav = [
   { to: '/', label: 'Portfolio', icon: LayoutDashboard, end: true },
-  { to: '/upload', label: 'New Project', icon: Upload },
   { to: '/ingredients', label: 'Ingredients', icon: FlaskConical },
 ]
 
