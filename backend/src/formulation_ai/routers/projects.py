@@ -501,6 +501,7 @@ def run_iteration(
             "unit": tgt.output_property.default_unit or "",
             "goal": tgt.goal,
             "reference": tgt.reference_label,
+            "weight": tgt.weight,
         }
         for tgt in sorted(project.targets, key=lambda x: x.sort_order)
     ]
@@ -537,6 +538,17 @@ def run_iteration(
         base_products=base_payload,
         tested=tested_payload,
         n_candidates=n_candidates,
+        batch_total_g=project.batch_total_g,
+    )
+
+    gp_active = (
+        settings.optimizer_backend == "gp_sklearn"
+        and len(tested_payload) >= settings.optimizer_min_observations
+    )
+    model_label = (
+        f"GP/{settings.optimizer_backend} · {settings.anthropic_model}"
+        if gp_active
+        else settings.anthropic_model
     )
 
     try:
@@ -552,7 +564,7 @@ def run_iteration(
             label=proposal.label,
             kind="proposed",
             rationale=proposal.rationale,
-            model_used=settings.anthropic_model,
+            model_used=model_label,
         )
         db.add(form)
         db.flush()

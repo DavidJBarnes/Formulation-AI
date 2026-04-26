@@ -17,5 +17,15 @@ class Settings(BaseSettings):
     anthropic_api_key: str | None = None
     anthropic_model: str = "claude-sonnet-4-6"
 
+    # Optimizer (Phase 2)
+    optimizer_backend: str = "llm"  # "llm" | "gp_sklearn" | "gp_botorch"
+    optimizer_min_observations: int = 3  # fall back to LLM-only below this
+    optimizer_acquisition: str = "ei"   # "ei" | "ucb" | "pi"
+    optimizer_ucb_kappa: float = 2.0
+    optimizer_ei_xi: float = 0.01
+    optimizer_n_candidates: int = 3
+    optimizer_n_restarts: int = 5
+    optimizer_random_seed: int | None = None
+
 
 settings = Settings()
