@@ -76,11 +76,6 @@ export function UploadPage() {
       const sampleFile = new File([blob], 'paint-example.xlsx', {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       })
-      if (!projName) setProjName('Low-VOC Architectural Paint')
-      if (!projTeam) setProjTeam('Coatings')
-      if (!projDomain) setProjDomain('Coatings')
-      if (!projStartedAt) setProjStartedAt('2026-02-10')
-      if (!projEndsAt) setProjEndsAt('2026-08-10')
       await parseFile(sampleFile)
     } catch (e) {
       setParseError(e instanceof Error ? e.message : 'Failed to load sample')

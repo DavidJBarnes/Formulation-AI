@@ -42,6 +42,7 @@ class FormulationRead(BaseModel):
     kind: str
     iteration_n: int | None = None
     rationale: str | None = None
+    model_used: str | None = None
     flagged: bool = False
     ingredients: dict[str, float] = {}
     properties: list[PropertyMeasurement] = []

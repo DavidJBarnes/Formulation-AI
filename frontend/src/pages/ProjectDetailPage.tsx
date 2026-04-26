@@ -28,6 +28,7 @@ interface ApiFormulation {
   kind: 'base' | 'tested' | 'proposed'
   iteration_n: number | null
   rationale?: string | null
+  model_used?: string | null
   flagged: boolean
   ingredients: Record<string, number>
   properties: { name: string; unit: string | null; value: number; sigma?: number | null }[]
@@ -72,6 +73,7 @@ function adaptFormulation(f: ApiFormulation): Formulation {
     kind: f.kind,
     iteration: f.iteration_n ?? 0,
     rationale: f.rationale ?? undefined,
+    model_used: f.model_used ?? undefined,
     flagged: f.flagged,
     ingredients: f.ingredients,
     properties: f.properties.map((p) => ({
@@ -597,10 +599,12 @@ function ProposalCard({
             </Badge>
             <p className="mt-2 text-sm font-semibold text-foreground">Iteration {formulation.iteration} candidate</p>
           </div>
-          <div className="flex items-center gap-1 text-brand">
-            <Brain className="h-4 w-4" />
-            <span className="text-[10px] font-semibold uppercase tracking-wider">Claude Opus 4.7</span>
-          </div>
+          {formulation.model_used && (
+            <div className="flex items-center gap-1 text-brand">
+              <Brain className="h-4 w-4" />
+              <span className="text-[10px] font-semibold uppercase tracking-wider">{formulation.model_used}</span>
+            </div>
+          )}
         </div>
       </div>
       <CardContent className="space-y-4 pt-4">

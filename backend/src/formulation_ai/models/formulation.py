@@ -50,6 +50,7 @@ class Formulation(Base):
         SAEnum(FormulationKind, native_enum=False, length=16), nullable=False
     )
     rationale: Mapped[str | None] = mapped_column(Text)
+    model_used: Mapped[str | None] = mapped_column(String(128))
     flagged: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

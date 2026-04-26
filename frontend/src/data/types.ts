@@ -52,6 +52,7 @@ export interface Formulation {
   ingredients: Record<string, number> // name -> amount
   properties: PropertyMeasurement[]
   rationale?: string
+  model_used?: string
   flagged?: boolean
 }
 

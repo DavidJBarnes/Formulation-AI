@@ -104,6 +104,7 @@ def _build_formulation_read(
         kind=form.kind,
         iteration_n=iteration_n,
         rationale=form.rationale,
+        model_used=form.model_used,
         flagged=form.flagged,
         ingredients=ingredients,
         properties=properties,
