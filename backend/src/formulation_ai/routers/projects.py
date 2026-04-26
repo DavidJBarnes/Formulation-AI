@@ -295,6 +295,9 @@ async def upload_project(
     name: str = Form(...),
     team: str = Form(""),
     domain: str = Form(""),
+    started_at: str = Form(""),
+    ends_at: str = Form(""),
+    max_iterations: int = Form(6),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> ProjectDetail:
@@ -311,6 +314,14 @@ async def upload_project(
         db.add(portfolio)
         db.flush()
 
+    from datetime import date as _date
+
+    def _parse_date(s: str) -> _date | None:
+        try:
+            return _date.fromisoformat(s.strip()) if s.strip() else None
+        except ValueError:
+            return None
+
     # Create project
     project = Project(
         portfolio_id=portfolio.id,
@@ -320,7 +331,9 @@ async def upload_project(
         team=team.strip() or None,
         domain=domain.strip() or None,
         status=ProjectStatus.planning,
-        max_iterations=6,
+        started_at=_parse_date(started_at),
+        ends_at=_parse_date(ends_at),
+        max_iterations=max_iterations,
     )
     db.add(project)
     db.flush()

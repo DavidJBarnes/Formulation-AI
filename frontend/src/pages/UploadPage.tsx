@@ -40,6 +40,9 @@ export function UploadPage() {
   const [projName, setProjName] = useState('')
   const [projTeam, setProjTeam] = useState('')
   const [projDomain, setProjDomain] = useState('')
+  const [projStartedAt, setProjStartedAt] = useState('')
+  const [projEndsAt, setProjEndsAt] = useState('')
+  const [projMaxIter, setProjMaxIter] = useState('6')
 
   async function parseFile(f: File) {
     setFile(f)
@@ -76,6 +79,8 @@ export function UploadPage() {
       if (!projName) setProjName('Low-VOC Architectural Paint')
       if (!projTeam) setProjTeam('Coatings')
       if (!projDomain) setProjDomain('Coatings')
+      if (!projStartedAt) setProjStartedAt('2026-02-10')
+      if (!projEndsAt) setProjEndsAt('2026-08-10')
       await parseFile(sampleFile)
     } catch (e) {
       setParseError(e instanceof Error ? e.message : 'Failed to load sample')
@@ -92,6 +97,9 @@ export function UploadPage() {
       fd.append('name', projName.trim())
       fd.append('team', projTeam.trim())
       fd.append('domain', projDomain.trim())
+      fd.append('started_at', projStartedAt.trim())
+      fd.append('ends_at', projEndsAt.trim())
+      fd.append('max_iterations', projMaxIter || '6')
       const created = await apiFetch<{ id: string }>('/projects/upload', {
         method: 'POST',
         body: fd,
@@ -130,7 +138,7 @@ export function UploadPage() {
               <CardTitle className="text-base">1 · Project details</CardTitle>
               <CardDescription>Name this project before or after uploading.</CardDescription>
             </CardHeader>
-            <CardContent className="grid grid-cols-1 gap-4 pt-5 sm:grid-cols-3">
+            <CardContent className="grid grid-cols-1 gap-4 pt-5 sm:grid-cols-3 sm:grid-rows-2">
               <div className="sm:col-span-3">
                 <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
                   Project name <span className="text-destructive">*</span>
@@ -157,6 +165,35 @@ export function UploadPage() {
                   value={projDomain}
                   onChange={(e) => setProjDomain(e.target.value)}
                   placeholder="e.g. Coatings"
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Start date</label>
+                <input
+                  type="date"
+                  value={projStartedAt}
+                  onChange={(e) => setProjStartedAt(e.target.value)}
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-muted-foreground">End date (planned)</label>
+                <input
+                  type="date"
+                  value={projEndsAt}
+                  onChange={(e) => setProjEndsAt(e.target.value)}
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Max iterations</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={20}
+                  value={projMaxIter}
+                  onChange={(e) => setProjMaxIter(e.target.value)}
                   className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
                 />
               </div>
