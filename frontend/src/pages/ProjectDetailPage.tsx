@@ -158,8 +158,17 @@ export function ProjectDetailPage() {
 
   useEffect(() => {
     if (!id) return
-    refreshProject().catch((e) => setError(e instanceof Error ? e.message : 'Failed to load'))
-      .finally(() => setLoading(false))
+    const load = async () => {
+      try {
+        await refreshProject()
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Failed to load')
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 
   // Count proposed/tested candidates per iteration from actual formulation data
