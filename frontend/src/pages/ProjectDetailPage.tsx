@@ -6,6 +6,7 @@ import {
   Brain,
   CheckCircle2,
   Clock,
+  Loader2,
   Sparkles,
   Target,
   TrendingUp,
@@ -13,6 +14,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { StatusBadge } from '@/components/StatusBadge'
 import { apiFetch } from '@/lib/api'
@@ -139,6 +141,11 @@ export function ProjectDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedIter, setSelectedIter] = useState<number | null>(null)
+  const [logSheetOpen, setLogSheetOpen] = useState(false)
+  const [logValues, setLogValues] = useState<Record<string, Record<string, string>>>({})
+  const [logSubmitting, setLogSubmitting] = useState(false)
+  const [logError, setLogError] = useState<string | null>(null)
+  const [runningIteration, setRunningIteration] = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -195,6 +202,70 @@ export function ProjectDetailPage() {
     })
   }, [project])
 
+  const handleRunIteration = async () => {
+    if (!project || !id) return
+    setRunningIteration(true)
+    try {
+      const updated = await apiFetch<ApiProjectDetail>(`/projects/${id}/run-iteration`, {
+        method: 'POST',
+      })
+      const adapted = adaptProjectDetail(updated)
+      setProject(adapted)
+      setSelectedIter(adapted.iteration)
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Failed to run iteration')
+    } finally {
+      setRunningIteration(false)
+    }
+  }
+
+  const openLogSheet = () => {
+    if (!project) return
+    const init: Record<string, Record<string, string>> = {}
+    for (const f of selectedProposed) {
+      init[f.id] = {}
+      for (const t of project.targets) {
+        init[f.id][t.property] = ''
+      }
+    }
+    setLogValues(init)
+    setLogError(null)
+    setLogSheetOpen(true)
+  }
+
+  const handleLogSubmit = async () => {
+    if (!project || !id) return
+    setLogSubmitting(true)
+    setLogError(null)
+    const results = Object.entries(logValues)
+      .map(([proposalId, props]) => ({
+        proposal_id: proposalId,
+        properties: Object.fromEntries(
+          Object.entries(props)
+            .filter(([, v]) => v.trim() !== '' && !isNaN(Number(v)))
+            .map(([k, v]) => [k, Number(v)]),
+        ),
+      }))
+      .filter((r) => Object.keys(r.properties).length > 0)
+    if (results.length === 0) {
+      setLogError('Enter at least one measured value.')
+      setLogSubmitting(false)
+      return
+    }
+    try {
+      const updated = await apiFetch<ApiProjectDetail>(`/projects/${id}/log-results`, {
+        method: 'POST',
+        body: { iteration_n: selectedIter, results },
+      })
+      setProject(adaptProjectDetail(updated))
+      setLogSheetOpen(false)
+    } catch (e) {
+      setLogError(e instanceof Error ? e.message : 'Failed to submit')
+    } finally {
+      setLogSubmitting(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">
@@ -237,13 +308,23 @@ export function ProjectDetailPage() {
             </p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline">
+            <Button
+              variant="outline"
+              onClick={openLogSheet}
+              disabled={selectedProposed.length === 0}
+            >
               <Clock className="h-4 w-4" />
               Log results
             </Button>
-            <Button>
-              <Sparkles className="h-4 w-4" />
-              Run next iteration
+            <Button onClick={handleRunIteration} disabled={runningIteration}>
+              {runningIteration
+                ? <Loader2 className="h-4 w-4 animate-spin" />
+                : <Sparkles className="h-4 w-4" />}
+              {runningIteration
+                ? 'Thinking…'
+                : project.iterations.length === 0
+                  ? 'Run first iteration'
+                  : 'Run next iteration'}
             </Button>
           </div>
         </div>
@@ -282,7 +363,11 @@ export function ProjectDetailPage() {
                 onSelect={() => setSelectedIter(it.n)}
               />
             ))}
-            <PendingIterationCard nextN={project.iterations.length + 1} max={project.maxIterations} />
+            <PendingIterationCard
+              nextN={project.iterations.length + 1}
+              max={project.maxIterations}
+              isRunning={runningIteration}
+            />
           </div>
         </CardContent>
       </Card>
@@ -377,6 +462,79 @@ export function ProjectDetailPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Log results sheet */}
+      <Sheet open={logSheetOpen} onOpenChange={setLogSheetOpen}>
+        <SheetContent>
+          <SheetHeader>
+            <SheetTitle>Log results · I{selectedIter}</SheetTitle>
+            <SheetDescription>
+              Enter measured lab values for each candidate. Leave blank to skip a formulation.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="flex-1 overflow-y-auto px-6 py-4">
+            <div className="space-y-6">
+              {selectedProposed.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No proposals for I{selectedIter}.</p>
+              ) : (
+                selectedProposed.map((f) => (
+                  <div key={f.id} className="space-y-3 rounded-xl border border-border/70 p-4">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="info" className="font-mono">{f.label}</Badge>
+                      <span className="text-xs text-muted-foreground">I{f.iteration} candidate</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      {project.targets.map((t) => {
+                        const predicted = f.properties.find((p) => p.name === t.property)
+                        return (
+                          <div key={t.property} className="space-y-1">
+                            <label className="text-xs font-medium text-foreground">
+                              {t.property}
+                              {t.unit && (
+                                <span className="ml-1 text-muted-foreground">({t.unit})</span>
+                              )}
+                            </label>
+                            <input
+                              type="number"
+                              step="any"
+                              placeholder="—"
+                              value={logValues[f.id]?.[t.property] ?? ''}
+                              onChange={(e) =>
+                                setLogValues((prev) => ({
+                                  ...prev,
+                                  [f.id]: { ...prev[f.id], [t.property]: e.target.value },
+                                }))
+                              }
+                              className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                            />
+                            {predicted && (
+                              <p className="text-[10px] text-muted-foreground">
+                                Predicted: {formatNumber(predicted.value)}
+                                {predicted.sigma != null && ` ± ${formatNumber(predicted.sigma)}`}
+                              </p>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))
+              )}
+              {logError && (
+                <p className="text-sm text-destructive">{logError}</p>
+              )}
+            </div>
+          </div>
+          <div className="border-t px-6 py-4 flex gap-2 justify-end">
+            <Button variant="outline" onClick={() => setLogSheetOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleLogSubmit} disabled={logSubmitting}>
+              {logSubmitting ? 'Saving…' : 'Save results'}
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }
@@ -533,14 +691,24 @@ function IterationCard({
   )
 }
 
-function PendingIterationCard({ nextN, max }: { nextN: number; max: number }) {
+function PendingIterationCard({ nextN, max, isRunning }: { nextN: number; max: number; isRunning: boolean }) {
   if (nextN > max) return null
   return (
-    <div className="flex w-44 shrink-0 flex-col items-start justify-between rounded-xl border border-dashed border-border bg-card/50 p-3 text-muted-foreground">
-      <div className="flex items-center justify-between">
+    <div className={cn(
+      'flex w-44 shrink-0 flex-col items-start justify-between rounded-xl border border-dashed p-3',
+      isRunning
+        ? 'border-brand/40 bg-brand-muted/30 text-brand'
+        : 'border-border bg-card/50 text-muted-foreground',
+    )}>
+      <div className="flex w-full items-center justify-between">
         <span className="text-xs font-semibold uppercase tracking-wider">I{nextN}</span>
+        {isRunning && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
       </div>
-      <p className="mt-3 text-[11px]">Next, after I{nextN - 1} results land.</p>
+      <p className="mt-3 text-[11px] leading-snug">
+        {isRunning
+          ? 'AI is generating proposals…'
+          : `Waiting for I${nextN - 1} results.`}
+      </p>
       <Button variant="outline" size="sm" className="mt-3 w-full" disabled>
         <Sparkles className="h-3 w-3" />
         Propose

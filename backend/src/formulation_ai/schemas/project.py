@@ -103,3 +103,15 @@ class ParsedUploadResponse(BaseModel):
     properties: list[ParsedPropertyOut]
     base_products: list[ParsedProductOut]
     targets: list[ParsedTargetOut]
+
+
+# Log-results request
+
+class FormulationResultEntry(BaseModel):
+    proposal_id: uuid.UUID
+    properties: dict[str, float]  # property_name -> measured value
+
+
+class LogResultsRequest(BaseModel):
+    iteration_n: int
+    results: list[FormulationResultEntry]

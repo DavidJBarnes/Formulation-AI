@@ -120,64 +120,56 @@ export function PortfolioPage() {
 
       {/* Charts area */}
       <Card className="overflow-hidden border-border/70 shadow-sm">
-        <CardHeader className="flex flex-row items-start justify-between gap-4 border-b bg-gradient-to-br from-brand-muted/40 via-card to-card pb-5">
-          <div>
-            <CardTitle className="text-base">Portfolio signal</CardTitle>
-            <CardDescription>Three lenses on the same R&D pipeline.</CardDescription>
-          </div>
-          <Tabs defaultValue="timeline" className="w-auto">
+        <Tabs defaultValue="timeline">
+          <CardHeader className="flex flex-row items-start justify-between gap-4 border-b bg-gradient-to-br from-brand-muted/40 via-card to-card pb-5">
+            <div>
+              <CardTitle className="text-base">Portfolio signal</CardTitle>
+              <CardDescription>Three lenses on the same R&D pipeline.</CardDescription>
+            </div>
             <TabsList>
               <TabsTrigger value="timeline">Timeline</TabsTrigger>
               <TabsTrigger value="trajectory">Trajectory</TabsTrigger>
               <TabsTrigger value="targets">Targets met</TabsTrigger>
             </TabsList>
-            <TabsContent value="timeline" className="hidden" />
-            <TabsContent value="trajectory" className="hidden" />
-            <TabsContent value="targets" className="hidden" />
-          </Tabs>
-        </CardHeader>
-        <CardContent className="pt-6">
-          {loading ? (
-            <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
-              Loading…
-            </div>
-          ) : (
-            <Tabs defaultValue="timeline">
-              <TabsList className="md:hidden">
-                <TabsTrigger value="timeline">Timeline</TabsTrigger>
-                <TabsTrigger value="trajectory">Trajectory</TabsTrigger>
-                <TabsTrigger value="targets">Targets met</TabsTrigger>
-              </TabsList>
-              <TabsContent value="timeline" className="mt-0">
-                <ChartFrame
-                  title="Project timelines"
-                  blurb="Bars show planned span; fill shows iterations completed. Dashed line is today."
-                  icon={TrendingUp}
-                >
-                  <GanttChart projects={projects} />
-                </ChartFrame>
-              </TabsContent>
-              <TabsContent value="trajectory" className="mt-0">
-                <ChartFrame
-                  title="Objective trajectory"
-                  blurb="Each project's normalized objective per iteration. Steeper is better."
-                  icon={TrendingUp}
-                >
-                  <ScatterChart points={portfolioScatter} />
-                </ChartFrame>
-              </TabsContent>
-              <TabsContent value="targets" className="mt-0">
-                <ChartFrame
-                  title="Targets met by axis"
-                  blurb="Where each project sits against its primary KPI, cost, sustainability, and quality goals."
-                  icon={FlaskConical}
-                >
-                  <Heatmap rows={heatmapRows} cols={heatmapCols} values={heatmapValues} />
-                </ChartFrame>
-              </TabsContent>
-            </Tabs>
-          )}
-        </CardContent>
+          </CardHeader>
+          <CardContent className="pt-6">
+            {loading ? (
+              <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
+                Loading…
+              </div>
+            ) : (
+              <>
+                <TabsContent value="timeline" className="mt-0">
+                  <ChartFrame
+                    title="Project timelines"
+                    blurb="Bars show planned span; fill shows iterations completed. Dashed line is today."
+                    icon={TrendingUp}
+                  >
+                    <GanttChart projects={projects} />
+                  </ChartFrame>
+                </TabsContent>
+                <TabsContent value="trajectory" className="mt-0">
+                  <ChartFrame
+                    title="Objective trajectory"
+                    blurb="Each project's normalized objective per iteration. Steeper is better."
+                    icon={TrendingUp}
+                  >
+                    <ScatterChart points={portfolioScatter} />
+                  </ChartFrame>
+                </TabsContent>
+                <TabsContent value="targets" className="mt-0">
+                  <ChartFrame
+                    title="Targets met by axis"
+                    blurb="Where each project sits against its primary KPI, cost, sustainability, and quality goals."
+                    icon={FlaskConical}
+                  >
+                    <Heatmap rows={heatmapRows} cols={heatmapCols} values={heatmapValues} />
+                  </ChartFrame>
+                </TabsContent>
+              </>
+            )}
+          </CardContent>
+        </Tabs>
       </Card>
 
       {/* Project list */}

@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from formulation_ai.auth import get_current_user
+from formulation_ai.config import settings
 from formulation_ai.db import get_db
 from formulation_ai.models import (
     Formulation,
@@ -24,10 +25,12 @@ from formulation_ai.models import (
     ProjectTarget,
     User,
 )
+from formulation_ai.models.iteration import Iteration, IterationStatus
 from formulation_ai.schemas.project import (
     FormulationRead,
     IngredientSpec,
     IterationSummary,
+    LogResultsRequest,
     ParsedIngredientOut,
     ParsedProductOut,
     ParsedPropertyOut,
@@ -38,6 +41,7 @@ from formulation_ai.schemas.project import (
     PropertyMeasurement,
     TargetSpec,
 )
+from formulation_ai.services.proposal_engine import ProposalRequest, run_proposal
 from formulation_ai.services.xlsx_parser import parse_xlsx
 
 _SAMPLE_PATH = Path(__file__).parent.parent.parent.parent.parent / "docs/upload-template/paint-example.xlsx"
@@ -422,8 +426,317 @@ async def upload_project(
             ))
 
     db.commit()
+    db.expire_all()
+    return get_project(project.id, db, current_user)
 
-    # Return full project detail by reusing the GET handler
+
+@router.post("/{project_id}/run-iteration", response_model=ProjectDetail)
+def run_iteration(
+    project_id: uuid.UUID,
+    n_candidates: int = 3,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ProjectDetail:
+    """Propose the next batch of candidate formulations using the LLM."""
+    stmt = (
+        select(Project)
+        .where(Project.id == project_id)
+        .options(
+            selectinload(Project.iterations),
+            selectinload(Project.targets).selectinload(ProjectTarget.output_property),
+            selectinload(Project.ingredients).selectinload(ProjectIngredient.ingredient),
+            selectinload(Project.formulations).selectinload(Formulation.ingredients),
+            selectinload(Project.formulations).selectinload(Formulation.properties),
+            selectinload(Project.formulations).selectinload(Formulation.iteration),
+        )
+    )
+    project = db.scalar(stmt)
+    if not project:
+        raise HTTPException(status_code=404, detail="project not found")
+
+    current_n = max((it.n for it in project.iterations), default=0)
+    next_n = current_n + 1
+    if next_n > project.max_iterations:
+        raise HTTPException(status_code=422, detail="project has reached max iterations")
+
+    # Create the Iteration record
+    from formulation_ai.models.iteration import IterationStatus
+    iteration = Iteration(
+        project_id=project.id,
+        n=next_n,
+        status=IterationStatus.in_progress,
+    )
+    db.add(iteration)
+    db.flush()
+
+    # Build lookup tables
+    pi_id_to_name: dict[uuid.UUID, str] = {
+        pi.id: pi.ingredient.name for pi in project.ingredients
+    }
+    pt_id_to_name: dict[uuid.UUID, tuple[str, str | None]] = {
+        tgt.id: (tgt.output_property.name, tgt.output_property.default_unit)
+        for tgt in project.targets
+    }
+    pt_by_name: dict[str, ProjectTarget] = {
+        tgt.output_property.name: tgt for tgt in project.targets
+    }
+    pi_by_name: dict[str, ProjectIngredient] = {
+        pi.ingredient.name: pi for pi in project.ingredients
+    }
+    iter_id_to_n: dict[uuid.UUID, int] = {it.id: it.n for it in project.iterations}
+
+    # Build proposal request payload
+    ingredients_payload = [
+        {
+            "name": pi.ingredient.name,
+            "unit": pi.unit or pi.ingredient.default_unit or "",
+            "min": pi.min_amount,
+            "max": pi.max_amount,
+        }
+        for pi in sorted(project.ingredients, key=lambda x: x.sort_order)
+    ]
+    targets_payload = [
+        {
+            "property": tgt.output_property.name,
+            "unit": tgt.output_property.default_unit or "",
+            "goal": tgt.goal,
+            "reference": tgt.reference_label,
+        }
+        for tgt in sorted(project.targets, key=lambda x: x.sort_order)
+    ]
+
+    def _formulation_payload(f: Formulation) -> dict:
+        ing = {
+            pi_id_to_name[fi.project_ingredient_id]: fi.amount
+            for fi in f.ingredients
+            if fi.project_ingredient_id in pi_id_to_name
+        }
+        props = [
+            {
+                "name": pt_id_to_name[fp.project_target_id][0],
+                "value": fp.value,
+                "sigma": fp.sigma,
+            }
+            for fp in f.properties
+            if fp.project_target_id in pt_id_to_name
+        ]
+        return {"label": f.label, "ingredients": ing, "properties": props}
+
+    base_payload = [_formulation_payload(f) for f in project.formulations if f.kind == "base"]
+    tested_payload = [
+        {**_formulation_payload(f), "iteration": iter_id_to_n.get(f.iteration_id)}
+        for f in sorted(project.formulations, key=lambda f: (iter_id_to_n.get(f.iteration_id) or 0, f.label))
+        if f.kind == "tested"
+    ]
+
+    req = ProposalRequest(
+        project_name=project.name,
+        iteration_n=next_n,
+        ingredients=ingredients_payload,
+        targets=targets_payload,
+        base_products=base_payload,
+        tested=tested_payload,
+        n_candidates=n_candidates,
+    )
+
+    try:
+        proposals = run_proposal(req)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"LLM proposal failed: {exc}") from exc
+
+    # Persist proposed formulations
+    for proposal in proposals:
+        form = Formulation(
+            project_id=project.id,
+            iteration_id=iteration.id,
+            label=proposal.label,
+            kind="proposed",
+            rationale=proposal.rationale,
+            model_used=settings.anthropic_model,
+        )
+        db.add(form)
+        db.flush()
+
+        for ing_name, amount in proposal.ingredients.items():
+            pi = pi_by_name.get(ing_name)
+            if pi is None:
+                continue
+            db.add(FormulationIngredient(
+                formulation_id=form.id,
+                project_ingredient_id=pi.id,
+                amount=amount,
+            ))
+
+        for pred in proposal.predictions:
+            pt = pt_by_name.get(pred["property"])
+            if pt is None:
+                continue
+            db.add(FormulationProperty(
+                formulation_id=form.id,
+                project_target_id=pt.id,
+                value=float(pred["value"]),
+                sigma=float(pred["sigma"]) if pred.get("sigma") is not None else None,
+            ))
+
+    # Advance project status from planning → iterating
+    if project.status == ProjectStatus.planning:
+        project.status = ProjectStatus.iterating
+
+    db.commit()
+    return get_project(project.id, db, current_user)
+
+
+@router.post("/{project_id}/log-results", response_model=ProjectDetail)
+def log_results(
+    project_id: uuid.UUID,
+    body: LogResultsRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ProjectDetail:
+    stmt = (
+        select(Project)
+        .where(Project.id == project_id)
+        .options(
+            selectinload(Project.iterations),
+            selectinload(Project.targets).selectinload(ProjectTarget.output_property),
+            selectinload(Project.ingredients).selectinload(ProjectIngredient.ingredient),
+            selectinload(Project.formulations).selectinload(Formulation.ingredients),
+            selectinload(Project.formulations).selectinload(Formulation.properties),
+            selectinload(Project.formulations).selectinload(Formulation.iteration),
+        )
+    )
+    project = db.scalar(stmt)
+    if not project:
+        raise HTTPException(status_code=404, detail="project not found")
+
+    if body.iteration_n < 1 or body.iteration_n > project.max_iterations:
+        raise HTTPException(status_code=422, detail="iteration_n out of range")
+
+    if not body.results:
+        raise HTTPException(status_code=422, detail="results cannot be empty")
+
+    # Find or create the Iteration record
+    iteration = next((it for it in project.iterations if it.n == body.iteration_n), None)
+    if not iteration:
+        iteration = Iteration(
+            project_id=project.id,
+            n=body.iteration_n,
+            status=IterationStatus.in_progress,
+        )
+        db.add(iteration)
+        db.flush()
+
+    # Lookup tables
+    pt_by_name: dict[str, ProjectTarget] = {
+        tgt.output_property.name: tgt for tgt in project.targets
+    }
+    proposals_by_id: dict[uuid.UUID, Formulation] = {
+        f.id: f for f in project.formulations if f.kind == "proposed"
+    }
+    base_by_label: dict[str, dict[uuid.UUID, float]] = {
+        f.label: {fp.project_target_id: fp.value for fp in f.properties}
+        for f in project.formulations
+        if f.kind == "base"
+    }
+
+    any_flagged = False
+    all_flag_reasons: list[str] = []
+    targets_met_best = 0
+
+    for idx, entry in enumerate(body.results):
+        proposal = proposals_by_id.get(entry.proposal_id)
+        if not proposal:
+            raise HTTPException(status_code=404, detail=f"proposal {entry.proposal_id} not found")
+
+        # Check deviation against predicted ± sigma
+        predicted: dict[uuid.UUID, tuple[float, float | None]] = {
+            fp.project_target_id: (fp.value, fp.sigma) for fp in proposal.properties
+        }
+        flagged = False
+        flag_reasons: list[str] = []
+        for prop_name, measured in entry.properties.items():
+            pt = pt_by_name.get(prop_name)
+            if pt is None:
+                continue
+            pred_entry = predicted.get(pt.id)
+            if pred_entry and pred_entry[1] is not None and pred_entry[1] > 0:
+                pred_val, sigma = pred_entry
+                if abs(measured - pred_val) > 2 * sigma:
+                    flagged = True
+                    flag_reasons.append(
+                        f"{proposal.label}/{prop_name}: predicted {pred_val:.3g}±{sigma:.3g}, got {measured:.3g}"
+                    )
+
+        if flagged:
+            any_flagged = True
+            all_flag_reasons.extend(flag_reasons)
+
+        # Build tested formulation label
+        existing_tested = sum(
+            1 for f in project.formulations
+            if f.kind == "tested" and f.iteration_id == iteration.id
+        )
+        tested_label = f"T-{body.iteration_n}-{existing_tested + idx + 1}"
+
+        tested_form = Formulation(
+            project_id=project.id,
+            iteration_id=iteration.id,
+            label=tested_label,
+            kind="tested",
+            flagged=flagged,
+        )
+        db.add(tested_form)
+        db.flush()
+
+        # Copy ingredient amounts from proposal
+        for fi in proposal.ingredients:
+            db.add(FormulationIngredient(
+                formulation_id=tested_form.id,
+                project_ingredient_id=fi.project_ingredient_id,
+                amount=fi.amount,
+            ))
+
+        # Record measured property values
+        for prop_name, measured_val in entry.properties.items():
+            pt = pt_by_name.get(prop_name)
+            if pt is None:
+                continue
+            db.add(FormulationProperty(
+                formulation_id=tested_form.id,
+                project_target_id=pt.id,
+                value=measured_val,
+            ))
+
+        # Compute targets met for this formulation
+        met = 0
+        for tgt in project.targets:
+            measured = entry.properties.get(tgt.output_property.name)
+            if measured is None:
+                continue
+            ref: float | None = None
+            if tgt.reference_label:
+                ref = base_by_label.get(tgt.reference_label, {}).get(tgt.id)
+            if _evaluate_goal(tgt.goal, measured, ref):
+                met += 1
+        targets_met_best = max(targets_met_best, met)
+
+    # Mark iteration done and record best objective
+    iteration.status = IterationStatus.done
+    total_targets = len(project.targets)
+    iteration.best_objective = (targets_met_best / total_targets) if total_targets > 0 else 0.0
+
+    # Auto-transition project status
+    if targets_met_best >= total_targets > 0:
+        project.status = ProjectStatus.converged
+        project.flag_note = None
+    elif any_flagged:
+        project.status = ProjectStatus.flagged
+        project.flag_note = "; ".join(all_flag_reasons[:3])
+    else:
+        project.status = ProjectStatus.iterating
+        project.flag_note = None
+
+    db.commit()
     return get_project(project.id, db, current_user)
 
 
