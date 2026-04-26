@@ -34,12 +34,16 @@ Keep the `optimizer/` module boundary clean so Phase 2 can slot in without refac
 .
 ├── frontend/                  Vite + React app
 ├── backend/                   FastAPI app (src layout under formulation_ai/)
-│   ├── src/formulation_ai/    app.py, config.py, db.py, auth.py, models/, routers/, schemas/
-│   └── alembic/               migrations
+│   ├── src/formulation_ai/    app.py, config.py, db.py, auth.py, models/, routers/, schemas/, services/
+│   └── alembic/               migrations (0001–0005)
+├── docs/
+│   ├── glossary.md            Domain + product term index
+│   ├── upload-template/       paint-example.xlsx + template.xlsx (canonical format reference)
+│   └── upload-samples/        epoxy-adhesive-sample.xlsx, detergent-sample.xlsx
 ├── experiments/               Standalone prototypes (not features)
 │   └── quad-model-proposal/   Audition artifact for Jun's #3 skepticism
 ├── docker-compose.yml         Postgres + backend + frontend
-└── .github/workflows/         ci.yml + deploy.yml
+└── .github/workflows/         ci-frontend.yml, ci-backend.yml, deploy-frontend.yml, deploy-backend.yml
 ```
 
 ## Commands
@@ -101,6 +105,47 @@ Frontend dev server proxies `/api/*` to `http://127.0.0.1:8000`. In production, 
 - **Cost/latency at scale.** Opus 4.7 proposals work great on 9 points. At portfolio scale (5–10 projects × N iterations × K candidates each), cost and latency haven't been scoped.
 - **Three round-3 questions to Jun** (project memory): MVP-skips-Signals confirmation; chart picks (Gantt/scatter/heatmap); adapter business model — self-serve with AI vs Revvity-implementation-service.
 
-## Current state
+## Current state (as of 2026-04-26)
 
-Initial scaffold committed and deployed. Auth plumbing is live at https://formulationai.davidjbarnes.com. The Quad Model audition prototype (`experiments/quad-model-proposal/`) runs end-to-end. **MVP slice picked (see above) — feature work can start when David greenlights it.**
+The full Phase 1 frontend is built and wired to real API data. No fixture data remains in any page.
+
+### What's live
+
+**Database (migrations 0001–0005):**
+- All 10 domain tables: portfolios, projects, ingredients, project_ingredients, formulation_ingredients, output_properties, project_targets, formulation_properties, iterations, formulations.
+- Migration 0005 seeds: 1 portfolio, 7 demo projects, 7 global ingredients, 3 global output properties, 22 iterations, 10 formulations (paint-low-voc fully detailed with base/tested/proposed formulations and all ingredient/property measurements).
+- Demo users: `david`, `nate`, `jun` — password `demo123` (bare usernames, not email addresses).
+
+**Backend API routes:**
+- `GET/POST/PATCH/DELETE /ingredients` — global ingredient registry CRUD
+- `GET /projects` — project list with computed `targets_met`, `targets_total`, `current_iteration`, iteration history (for scatter chart)
+- `GET /projects/{id}` — full project detail: ingredients, targets, base/tested/proposed formulations with ingredients and properties
+- `POST /projects/parse-upload` — dry-run XLSX parse (no DB writes); returns ingredients, properties, base products, targets for preview
+- `POST /projects/upload` — creates project + global ingredients/output_properties + project_ingredients/targets + base formulations from XLSX + form fields
+- `GET /projects/sample-xlsx` — serves paint-example.xlsx for the frontend sample button
+
+**Important router ordering:** In `projects.py`, static routes (`/sample-xlsx`, `/parse-upload`, `/upload`) are defined BEFORE the parameterized `/{project_id}` route to avoid FastAPI swallowing them.
+
+**Frontend pages (all real API data):**
+- `PortfolioPage` — `GET /projects`; Gantt built from `started_at`/`ends_at`; scatter from iteration history; heatmap from target/iteration progress ratios. Gantt skips projects with null dates.
+- `ProjectDetailPage` — `GET /projects/:id`; all formulation data, targets, iteration timeline.
+- `IngredientsPage` — full CRUD via `/ingredients`.
+- `UploadPage` — two-step flow: parse preview → confirm create. Fields: name (required), team, domain, start date, end date, max iterations. "Use paint sample" button fetches sample XLSX from backend and auto-fills paint project metadata.
+
+**XLSX upload format** (Products + Targets sheets):
+- Products sheet: row 1 = headers. Col 1 = product name. Ingredient cols: `Ingredient: Name (unit)`. Property cols: `Property: Name (unit)`.
+- Targets sheet: columns `Property`, `Goal`, `Reference`, `Notes`. Goal DSL: `>=N`, `<=N`, `=N`, `+N%`, `-N%`, `[a,b]`. Reference `absolute` or `none` → stored as NULL.
+- Parser lives in `backend/src/formulation_ai/services/xlsx_parser.py`.
+
+**Navigation:** Portfolio, Ingredients. "Start new project" button on portfolio → `/upload`. No "New Project" in nav.
+
+**Goal DSL evaluator** (`routers/projects.py → _evaluate_goal`): supports `>=`, `<=`, `=`, `+N%`, `-N%`, `[a,b]`. Used to compute `targets_met` per project.
+
+**`owner_name`** is a VARCHAR on `projects` table (display name, separate from `owner_id` FK). Set from `current_user.full_name or current_user.email` on upload; set manually in seed migration for demo projects.
+
+### What's not built yet
+- Log results (lab data entry into a new Iteration)
+- "Run next iteration" — LLM proposal engine not wired to UI
+- OutputProperties global registry page (same pattern as Ingredients, not built)
+- Project CRUD (edit name/dates/status after creation)
+- Signals adapter (Phase 2)
