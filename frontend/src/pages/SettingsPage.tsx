@@ -233,7 +233,12 @@ function UserAbilitiesMatrix() {
                     return (
                       <td key={a.key} className="px-4 py-3 text-center">
                         {u.is_admin ? (
-                          <span className="text-muted-foreground/40" title="Admins have all abilities">—</span>
+                          <span
+                            className="inline-flex h-5 w-5 cursor-default items-center justify-center rounded"
+                            title="Admin — all abilities granted implicitly"
+                          >
+                            <span className="h-4 w-4 rounded border-2 border-muted-foreground/30 bg-muted-foreground/20" />
+                          </span>
                         ) : (
                           <button
                             onClick={() => void toggle(u.id, a.key, granted)}
