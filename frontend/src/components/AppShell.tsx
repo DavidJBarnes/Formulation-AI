@@ -67,13 +67,8 @@ export function AppShell() {
               <NavItem key={item.to} {...item} />
             ))}
           </nav>
-          <div className="border-t p-3">
-            <div className="rounded-lg bg-brand-muted p-3">
-              <div className="text-xs font-semibold text-brand">Phase 1 · POC</div>
-              <p className="mt-1 text-xs leading-snug text-brand/80">
-                LLM-only proposal engine. Bayesian optimizer slots in for Phase 2.
-              </p>
-            </div>
+          <div className="border-t px-4 py-3">
+            <span className="text-xs text-muted-foreground">v0.1 · preview</span>
           </div>
         </aside>
 
@@ -83,9 +78,6 @@ export function AppShell() {
             <div className="flex flex-1 items-center gap-3 text-sm text-muted-foreground">
               <Breadcrumb />
             </div>
-            <Badge variant="muted" className="hidden md:inline-flex">
-              v0.1 · preview
-            </Badge>
             <DropdownMenu>
               <DropdownMenuTrigger className="flex items-center gap-2 rounded-full p-1 pl-2 hover:bg-muted">
                 <span className="hidden text-right text-xs leading-tight md:block">
