@@ -8,6 +8,8 @@ export interface CurrentUser {
   email: string
   full_name: string | null
   is_active: boolean
+  is_admin: boolean
+  abilities: string[]
 }
 
 interface AuthContextValue {
@@ -16,6 +18,8 @@ interface AuthContextValue {
   login: (email: string, password: string) => Promise<void>
   logout: () => void
   refresh: () => Promise<void>
+  /** Returns true if the user is an admin or has the named ability explicitly granted. */
+  hasAbility: (key: string) => boolean
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
@@ -63,9 +67,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null)
   }, [])
 
+  const hasAbility = useCallback(
+    (key: string) => {
+      if (!user) return false
+      if (user.is_admin) return true
+      return user.abilities.includes(key)
+    },
+    [user],
+  )
+
   const value = useMemo(
-    () => ({ user, loading, login, logout, refresh }),
-    [user, loading, login, logout, refresh],
+    () => ({ user, loading, login, logout, refresh, hasAbility }),
+    [user, loading, login, logout, refresh, hasAbility],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

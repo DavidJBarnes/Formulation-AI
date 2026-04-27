@@ -1,3 +1,4 @@
+from formulation_ai.models.ability import Ability
 from formulation_ai.models.base import Base
 from formulation_ai.models.formulation import Formulation, FormulationKind
 from formulation_ai.models.ingredient import FormulationIngredient, Ingredient, ProjectIngredient
@@ -6,10 +7,13 @@ from formulation_ai.models.output_property import FormulationProperty, OutputPro
 from formulation_ai.models.portfolio import Portfolio
 from formulation_ai.models.project import Project, ProjectStatus
 from formulation_ai.models.user import User
+from formulation_ai.models.user_ability import UserAbility
 
 __all__ = [
     "Base",
     "User",
+    "Ability",
+    "UserAbility",
     "Portfolio",
     "Project",
     "ProjectStatus",
