@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from formulation_ai.config import settings
+from formulation_ai.routers import admin as admin_router
 from formulation_ai.routers import auth as auth_router
 from formulation_ai.routers import ingredients as ingredients_router
 from formulation_ai.routers import projects as projects_router
@@ -27,6 +28,7 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(auth_router.router)
+    app.include_router(admin_router.router)
     app.include_router(ingredients_router.router)
     app.include_router(projects_router.router)
 

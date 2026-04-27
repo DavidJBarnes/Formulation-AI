@@ -7,6 +7,7 @@ import { PortfolioPage } from '@/pages/PortfolioPage'
 import { ProjectDetailPage } from '@/pages/ProjectDetailPage'
 import { UploadPage } from '@/pages/UploadPage'
 import { IngredientsPage } from '@/pages/IngredientsPage'
+import { SettingsPage } from '@/pages/SettingsPage'
 
 export default function App() {
   return (
@@ -25,6 +26,7 @@ export default function App() {
             <Route path="/projects/:id" element={<ProjectDetailPage />} />
             <Route path="/upload" element={<UploadPage />} />
             <Route path="/ingredients" element={<IngredientsPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

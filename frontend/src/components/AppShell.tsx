@@ -28,7 +28,6 @@ const nav = [
 ]
 
 const secondaryNav = [
-  { to: '/settings', label: 'Settings', icon: Settings, disabled: true },
   { to: '/help', label: 'Help', icon: HelpCircle, disabled: true },
 ]
 
@@ -61,6 +60,9 @@ export function AppShell() {
             <p className="mt-6 px-3 pb-1.5 pt-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
               System
             </p>
+            {user?.is_admin && (
+              <NavItem to="/settings" label="Settings" icon={Settings} />
+            )}
             {secondaryNav.map((item) => (
               <NavItem key={item.to} {...item} />
             ))}
@@ -130,6 +132,7 @@ function Breadcrumb() {
   const { pathname } = useLocation()
   if (pathname === '/') return <span className="hidden md:inline text-muted-foreground/60">Portfolio overview</span>
   if (pathname === '/ingredients') return <span className="hidden md:inline text-foreground font-medium">Ingredients</span>
+  if (pathname === '/settings') return <span className="hidden md:inline text-foreground font-medium">Settings</span>
   if (pathname === '/upload') return (
     <span className="hidden md:inline">
       <span className="text-muted-foreground/60">Portfolio</span>

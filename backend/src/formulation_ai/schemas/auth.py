@@ -18,6 +18,8 @@ class UserRead(BaseModel):
     email: str
     full_name: str | None
     is_active: bool
+    is_admin: bool
+    abilities: list[str] = []
 
 
 class Token(BaseModel):
