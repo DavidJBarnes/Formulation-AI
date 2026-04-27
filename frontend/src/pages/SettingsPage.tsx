@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Navigate } from 'react-router-dom'
-import { Loader2, Plus, ShieldCheck } from 'lucide-react'
+import { Check, Loader2, Plus, ShieldCheck } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -237,7 +237,9 @@ function UserAbilitiesMatrix() {
                             className="inline-flex h-5 w-5 cursor-default items-center justify-center rounded"
                             title="Admin — all abilities granted implicitly"
                           >
-                            <span className="h-4 w-4 rounded border-2 border-muted-foreground/30 bg-muted-foreground/20" />
+                            <span className="inline-flex h-4 w-4 items-center justify-center rounded border-2 border-muted-foreground/40 bg-muted-foreground/20">
+                              <Check className="h-2.5 w-2.5 text-muted-foreground/60" strokeWidth={3} />
+                            </span>
                           </span>
                         ) : (
                           <button
