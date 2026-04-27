@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { Logo } from '@/components/Logo'
 import { useAuth } from '@/lib/auth'
 import { ApiError } from '@/lib/api'
 
@@ -34,53 +35,56 @@ export function LoginPage() {
 
   return (
     <div className="flex h-full items-center justify-center bg-background px-4">
-      <form
-        onSubmit={handleSubmit}
-        className="w-full max-w-sm rounded-lg border bg-card p-6 shadow-sm"
-      >
-        <h1 className="text-xl font-semibold text-foreground">Sign in</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Formulation-AI</p>
-
-        <label className="mt-6 block text-sm font-medium text-foreground">
-          Username
-          <input
-            type="text"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            autoFocus
-            autoComplete="username"
-            spellCheck={false}
-            autoCapitalize="off"
-            className="mt-1 block w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
-          />
-        </label>
-
-        <label className="mt-4 block text-sm font-medium text-foreground">
-          Password
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            className="mt-1 block w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
-          />
-        </label>
-
-        {error && (
-          <p className="mt-4 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
-            {error}
-          </p>
-        )}
-
-        <button
-          type="submit"
-          disabled={submitting}
-          className="mt-6 w-full rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-60"
+      <div className="w-full max-w-sm space-y-6">
+        <Logo size="lg" className="justify-center" />
+        <form
+          onSubmit={handleSubmit}
+          className="rounded-lg border bg-card p-6 shadow-sm"
         >
-          {submitting ? 'Signing in…' : 'Sign in'}
-        </button>
-      </form>
+          <h1 className="text-xl font-semibold text-foreground">Sign in</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Enter your credentials to continue.</p>
+
+          <label className="mt-6 block text-sm font-medium text-foreground">
+            Username
+            <input
+              type="text"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              autoFocus
+              autoComplete="username"
+              spellCheck={false}
+              autoCapitalize="off"
+              className="mt-1 block w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+            />
+          </label>
+
+          <label className="mt-4 block text-sm font-medium text-foreground">
+            Password
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              className="mt-1 block w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+            />
+          </label>
+
+          {error && (
+            <p className="mt-4 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {error}
+            </p>
+          )}
+
+          <button
+            type="submit"
+            disabled={submitting}
+            className="mt-6 w-full rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-60"
+          >
+            {submitting ? 'Signing in…' : 'Sign in'}
+          </button>
+        </form>
+      </div>
     </div>
   )
 }
