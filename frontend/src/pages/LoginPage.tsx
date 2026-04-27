@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { Navigate, useNavigate } from 'react-router-dom'
 import { Logo } from '@/components/Logo'
 import { useAuth } from '@/lib/auth'
 import { ApiError } from '@/lib/api'
@@ -7,15 +7,13 @@ import { ApiError } from '@/lib/api'
 export function LoginPage() {
   const { user, login } = useAuth()
   const navigate = useNavigate()
-  const location = useLocation()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
   if (user) {
-    const from = (location.state as { from?: { pathname: string } } | null)?.from?.pathname ?? '/'
-    return <Navigate to={from} replace />
+    return <Navigate to="/" replace />
   }
 
   async function handleSubmit(e: FormEvent) {
