@@ -315,25 +315,23 @@ export function ProjectDetailPage() {
               window {fmt(project.startedAt)} → {fmt(project.endsAt)}
             </p>
           </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={openLogSheet}
-              disabled={selectedProposed.length === 0}
-            >
-              <Clock className="h-4 w-4" />
-              Log results
-            </Button>
-            <Button onClick={handleRunIteration} disabled={runningIteration}>
-              {runningIteration
-                ? <Loader2 className="h-4 w-4 animate-spin" />
-                : <Sparkles className="h-4 w-4" />}
-              {runningIteration
-                ? 'Thinking…'
-                : project.iterations.length === 0
-                  ? 'Run first iteration'
-                  : 'Run next iteration'}
-            </Button>
+          <div className="flex items-center gap-2">
+            {project.iterations.length >= project.maxIterations ? (
+              <span className="text-xs text-muted-foreground">
+                All {project.maxIterations} iterations complete
+              </span>
+            ) : (
+              <Button onClick={handleRunIteration} disabled={runningIteration}>
+                {runningIteration
+                  ? <Loader2 className="h-4 w-4 animate-spin" />
+                  : <Sparkles className="h-4 w-4" />}
+                {runningIteration
+                  ? 'Thinking…'
+                  : project.iterations.length === 0
+                    ? 'Run first iteration'
+                    : 'Run next iteration'}
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -355,7 +353,20 @@ export function ProjectDetailPage() {
                 Click an iteration to view its proposals and results.
               </CardDescription>
             </div>
-            <ObjectiveSpark series={project.iterations.map((it) => it.bestObjective)} />
+            <div className="flex items-center gap-3">
+              {selectedIter != null && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={openLogSheet}
+                  disabled={selectedProposed.length === 0}
+                >
+                  <Clock className="h-4 w-4" />
+                  Log results · I{selectedIter}
+                </Button>
+              )}
+              <ObjectiveSpark series={project.iterations.map((it) => it.bestObjective)} />
+            </div>
           </div>
         </CardHeader>
         <CardContent className="py-6">
@@ -841,7 +852,12 @@ function ProposalCard({
         {/* Rationale */}
         {formulation.rationale && (
           <div className="rounded-md border-l-2 border-brand bg-brand-muted/40 px-3 py-2">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-brand">Rationale</p>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-brand">Rationale</p>
+              {formulation.model_used && !formulation.model_used.startsWith('GP/') && (
+                <span className="text-[10px] text-muted-foreground/70">{formulation.model_used}</span>
+              )}
+            </div>
             <p className="mt-1 text-xs leading-relaxed text-foreground">{formulation.rationale}</p>
           </div>
         )}
