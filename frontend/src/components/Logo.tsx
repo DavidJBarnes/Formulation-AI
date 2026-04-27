@@ -3,12 +3,13 @@ import { cn } from '@/lib/utils'
 interface LogoProps {
   className?: string
   variant?: 'mark' | 'wordmark'
+  size?: 'sm' | 'lg'
 }
 
-export function Logo({ className, variant = 'wordmark' }: LogoProps) {
+export function Logo({ className, variant = 'wordmark', size = 'sm' }: LogoProps) {
   return (
     <div className={cn('flex items-center gap-2', className)}>
-      <svg viewBox="0 0 32 32" className="h-7 w-7" aria-hidden="true">
+      <svg viewBox="0 0 32 32" className={size === 'lg' ? 'h-12 w-12' : 'h-7 w-7'} aria-hidden="true">
         <defs>
           <linearGradient id="fa-grad" x1="0" x2="1" y1="0" y2="1">
             <stop offset="0%" stopColor="hsl(221 83% 48%)" />
@@ -31,10 +32,10 @@ export function Logo({ className, variant = 'wordmark' }: LogoProps) {
       </svg>
       {variant === 'wordmark' && (
         <div className="flex flex-col leading-none">
-          <span className="text-sm font-semibold tracking-tight text-foreground">
+          <span className={cn('font-semibold tracking-tight text-foreground', size === 'lg' ? 'text-xl' : 'text-sm')}>
             Formulation<span className="text-brand">·AI</span>
           </span>
-          <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+          <span className={cn('font-medium uppercase tracking-wider text-muted-foreground', size === 'lg' ? 'text-xs mt-0.5' : 'text-[10px]')}>
             Closed-loop optimization
           </span>
         </div>
