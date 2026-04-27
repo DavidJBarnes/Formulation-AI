@@ -57,6 +57,7 @@ jobs:
             --timeout-seconds 300 \
             --parameters commands='[
               "set -e",
+              "docker image prune -af",
               "aws ecr get-login-password --region '"$AWS_REGION"' | docker login --username AWS --password-stdin '"$ECR_REGISTRY"'",
               "docker pull '"$IMAGE"'",
               "docker stop '"$CONTAINER_NGINX"' || true && docker rm '"$CONTAINER_NGINX"' || true",

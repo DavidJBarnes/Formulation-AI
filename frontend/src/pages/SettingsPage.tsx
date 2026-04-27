@@ -117,8 +117,7 @@ function UserAbilitiesMatrix() {
     try {
       const created = await apiFetch<AbilityOut>('/admin/abilities', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key, description: newDesc.trim() || null }),
+        body: { key, description: newDesc.trim() || null },
       })
       setAbilities((prev) => [...prev, created])
       setNewKey('')

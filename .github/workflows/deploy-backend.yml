@@ -58,6 +58,7 @@ jobs:
             --timeout-seconds 600 \
             --parameters commands='[
               "set -e",
+              "docker image prune -af",
               "aws ecr get-login-password --region '"$AWS_REGION"' | docker login --username AWS --password-stdin '"$ECR_REGISTRY"'",
               "docker pull '"$IMAGE"'",
               "docker run --rm --network host --env-file '"$ENV_FILE"' '"$IMAGE"' alembic upgrade head",
