@@ -153,7 +153,7 @@ export function ProjectDetailPage() {
     const data = await apiFetch<ApiProjectDetail>(`/projects/${id}`)
     const adapted = adaptProjectDetail(data)
     setProject(adapted)
-    setSelectedIter(selectIter ?? adapted.iteration ?? adapted.iterations[0]?.n ?? null)
+    setSelectedIter(selectIter ?? adapted.iterations.at(-1)?.n ?? null)
   }
 
   useEffect(() => {
