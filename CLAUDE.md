@@ -91,13 +91,13 @@ Frontend dev server proxies `/api/*` to `http://127.0.0.1:8000`. In production, 
 - **`../eb/Unified-Document-Retrieval/frontend`** — UI layout + component-library reference. Copy patterns from `AppShell.tsx`, `src/lib/utils.ts`, and the Radix/Tailwind config files verbatim.
 
 ## Domain context that isn't in the code
-- **Important Libraries to support formulation workflow: Projects, Formulations(Data Tables), Ingredients(Virtual), Materials Inventory(Physical), Math, Testing Methods, Testing Results, Actions**
+- **Important Libraries to support formulation workflow: Projects, Formulations(Data Tables), Ingredients(Virtual), Materials Inventory(Physical), Math, Testing Methods, Testing Results, User, Actions**
 - **Important Workflow Steps: Design Formulation - Make a Physical Sample to test - Test, generate measurements data - Decide, data analytics**
 - **Signals Notebook has no "formulation" object.** Notebooks are folders, experiments are the primary container, and formulation data spreads across one or many experiments as scattered free text, tables, embedded tables, hierarchy tables, hyperlinks, material library refs, tasks, and steps — "loosely connected SQL database without consistent data-logic-action mapping" (Jun, 2026-04-24). The ingestion adapter is therefore an **AI-assisted per-team mapping wizard with human-in-the-loop confirmation**, not an automatic ETL. Treat it as Phase 2's hardest sub-project; do not depend on it for the MVP demo.
 - **The tabularized shape downstream of the adapter is simple:** wide table, one row per tested formulation, N input columns + M output columns. The complexity is in producing it, not consuming it.
 - **Output contract the optimizer must satisfy:** `(predicted value, 1-sigma uncertainty)` per output per candidate, plus a short rationale. This shape comes from Jun's "Sheet1 predictions" in `experiments/quad-model-proposal/Quad Model.xlsx`.
 - **Results are mostly numerical.** Categorical (including pass/fail) is supported but not the default. Don't model results as booleans.
-- **Jun is openly skeptical that LLMs can do DOE.** The `experiments/quad-model-proposal/` prototype is the concrete answer to that — a one-shot script that demonstrates Claude Opus 4.7 proposing new candidates with honest uncertainty on his synthetic dataset. When engaging Jun on the proposal engine, lead with runnable demos against his data, not architecture slides.
+- **Jun is openly skeptical that LLMs can do advanced DOE.** The `experiments/quad-model-proposal/` prototype is the concrete answer to that — a one-shot script that demonstrates Claude Opus 4.7 proposing new candidates with honest uncertainty on his synthetic dataset. When engaging Jun on the proposal engine, lead with runnable demos against his data, not architecture slides.
 
 ## Open questions / unknowns
 
