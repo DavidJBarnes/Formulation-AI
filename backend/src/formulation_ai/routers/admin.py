@@ -10,6 +10,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy import exc as sa_exc
 from sqlalchemy.orm import Session
 
 from formulation_ai.auth import get_current_admin, hash_password, require_ability
@@ -141,10 +142,14 @@ def revoke_ability(
 def create_user(
     payload: AdminUserCreate,
     db: Session = Depends(get_db),
-    _: User = Depends(require_ability("manage_users")),
+    current_user: User = Depends(require_ability("manage_users")),
 ) -> User:
-    if db.query(User).filter(User.email == payload.email).first():
-        raise HTTPException(status_code=400, detail="email already registered")
+    # Only admins may create admin accounts
+    if payload.is_admin and not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can create admin accounts",
+        )
     user = User(
         email=payload.email,
         password_hash=hash_password(payload.password),
@@ -154,7 +159,11 @@ def create_user(
         is_admin=payload.is_admin,
     )
     db.add(user)
-    db.commit()
+    try:
+        db.commit()
+    except sa_exc.IntegrityError as err:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="email already registered") from err
     db.refresh(user)
     return user
 
