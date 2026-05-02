@@ -89,7 +89,7 @@ def create_ability(
 @router.get("/users", response_model=list[UserWithAbilities])
 def list_users(
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_admin),
+    _: User = Depends(require_ability("manage_users")),
 ) -> list[User]:
     return db.query(User).order_by(User.email).all()
 
