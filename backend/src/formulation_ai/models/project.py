@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     from formulation_ai.models.iteration import Iteration
     from formulation_ai.models.output_property import ProjectTarget
     from formulation_ai.models.portfolio import Portfolio
+    from formulation_ai.models.team import Team
     from formulation_ai.models.user import User
 
 
@@ -40,10 +41,11 @@ class Project(Base, TimestampMixin):
     owner_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL")
     )
-    owner_name: Mapped[str | None] = mapped_column(String(256))
     name: Mapped[str] = mapped_column(String(256), nullable=False)
     domain: Mapped[str | None] = mapped_column(String(128))
-    team: Mapped[str | None] = mapped_column(String(128))
+    team_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("teams.id", ondelete="SET NULL")
+    )
     status: Mapped[ProjectStatus] = mapped_column(
         SAEnum(ProjectStatus, native_enum=False, length=16),
         default=ProjectStatus.planning,
@@ -57,6 +59,7 @@ class Project(Base, TimestampMixin):
 
     portfolio: Mapped[Portfolio] = relationship(back_populates="projects")
     owner: Mapped[User | None] = relationship()
+    team: Mapped[Team | None] = relationship(back_populates="projects")
     ingredients: Mapped[list[ProjectIngredient]] = relationship(
         back_populates="project",
         cascade="all, delete-orphan",

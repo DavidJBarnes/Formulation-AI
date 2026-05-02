@@ -15,7 +15,7 @@ import type { PortfolioProject } from '@/data/types'
 interface ApiProjectListItem {
   id: string
   name: string
-  team: string | null
+  team_name: string | null
   owner_name: string | null
   status: string
   started_at: string | null
@@ -39,7 +39,7 @@ export function PortfolioPage() {
           data.map((p) => ({
             id: p.id,
             name: p.name,
-            team: p.team ?? '',
+            team: p.team_name ?? '',
             owner: p.owner_name ?? '',
             status: p.status as PortfolioProject['status'],
             startedAt: p.started_at ?? '',

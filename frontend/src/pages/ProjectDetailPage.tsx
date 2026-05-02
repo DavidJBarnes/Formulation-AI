@@ -47,7 +47,7 @@ interface ApiIterationSummary {
 interface ApiProjectDetail {
   id: string
   name: string
-  team: string | null
+  team_name: string | null
   owner_name: string | null
   status: string
   started_at: string | null
@@ -98,7 +98,7 @@ function adaptProjectDetail(api: ApiProjectDetail): ProjectDetail {
   return {
     id: api.id,
     name: api.name,
-    team: api.team ?? '',
+    team: api.team_name ?? '',
     owner: api.owner_name ?? '',
     status: api.status as ProjectDetail['status'],
     domain: api.domain ?? '',
