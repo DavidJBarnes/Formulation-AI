@@ -51,7 +51,7 @@ class FormulationRead(BaseModel):
 class ProjectListItem(BaseModel):
     id: uuid.UUID
     name: str
-    team: str | None
+    team_name: str | None
     owner_name: str | None
     status: str
     started_at: date | None

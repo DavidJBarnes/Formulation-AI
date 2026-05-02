@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowRight,
@@ -38,11 +38,18 @@ export function UploadPage() {
 
   // Project metadata
   const [projName, setProjName] = useState('')
-  const [projTeam, setProjTeam] = useState('')
+  const [projTeamId, setProjTeamId] = useState('')
+  const [teams, setTeams] = useState<{ id: string; name: string }[]>([])
   const [projDomain, setProjDomain] = useState('')
   const [projStartedAt, setProjStartedAt] = useState('')
   const [projEndsAt, setProjEndsAt] = useState('')
   const [projMaxIter, setProjMaxIter] = useState('6')
+
+  useEffect(() => {
+    apiFetch<{ id: string; name: string }[]>('/teams')
+      .then(setTeams)
+      .catch((e) => console.error('Failed to load teams:', e))
+  }, [])
 
   async function parseFile(f: File) {
     setFile(f)
@@ -90,7 +97,7 @@ export function UploadPage() {
       const fd = new FormData()
       fd.append('file', file)
       fd.append('name', projName.trim())
-      fd.append('team', projTeam.trim())
+      fd.append('team_id', projTeamId)
       fd.append('domain', projDomain.trim())
       fd.append('started_at', projStartedAt.trim())
       fd.append('ends_at', projEndsAt.trim())
@@ -147,12 +154,16 @@ export function UploadPage() {
               </div>
               <div>
                 <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Team</label>
-                <input
-                  value={projTeam}
-                  onChange={(e) => setProjTeam(e.target.value)}
-                  placeholder="e.g. Coatings"
+                <select
+                  value={projTeamId}
+                  onChange={(e) => setProjTeamId(e.target.value)}
                   className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
-                />
+                >
+                  <option value="">— None —</option>
+                  {teams.map((t) => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Domain</label>

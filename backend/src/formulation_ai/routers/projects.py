@@ -23,6 +23,7 @@ from formulation_ai.models import (
     ProjectIngredient,
     ProjectStatus,
     ProjectTarget,
+    Team,
     User,
 )
 from formulation_ai.models.iteration import Iteration, IterationStatus
@@ -163,6 +164,13 @@ def _targets_met(
     return count
 
 
+def _owner_display(owner: User | None) -> str | None:
+    if not owner:
+        return None
+    display = owner.full_name or owner.email
+    return display or None
+
+
 def _project_to_list_item(project: Project) -> ProjectListItem:
     iterations_sorted = sorted(project.iterations, key=lambda i: i.n)
     current_iteration = max((i.n for i in iterations_sorted), default=0)
@@ -173,8 +181,8 @@ def _project_to_list_item(project: Project) -> ProjectListItem:
     return ProjectListItem(
         id=project.id,
         name=project.name,
-        team=project.team,
-        owner_name=project.owner_name,
+        team_name=project.team.name if project.team else None,
+        owner_name=_owner_display(project.owner),
         status=project.status,
         started_at=project.started_at,
         ends_at=project.ends_at,
@@ -252,6 +260,8 @@ def list_projects(
             selectinload(Project.targets).selectinload(ProjectTarget.output_property),
             selectinload(Project.formulations).selectinload(Formulation.properties),
             selectinload(Project.formulations).selectinload(Formulation.iteration),
+            selectinload(Project.team),
+            selectinload(Project.owner),
         )
         .order_by(Project.started_at.desc().nullslast())
     )
@@ -298,7 +308,7 @@ async def parse_upload(
 async def upload_project(
     file: UploadFile = File(...),
     name: str = Form(...),
-    team: str = Form(""),
+    team_id: str = Form(""),
     domain: str = Form(""),
     started_at: str = Form(""),
     ends_at: str = Form(""),
@@ -327,13 +337,27 @@ async def upload_project(
         except ValueError:
             return None
 
+    def _parse_team_id(s: str) -> uuid.UUID | None:
+        stripped = s.strip()
+        if not stripped:
+            return None
+        try:
+            return uuid.UUID(stripped)
+        except ValueError:
+            raise HTTPException(status_code=422, detail="Invalid team_id format") from None
+
+    parsed_team_id = _parse_team_id(team_id)
+
+    # Validate team exists if an ID was provided
+    if parsed_team_id is not None and not db.get(Team, parsed_team_id):
+        raise HTTPException(status_code=404, detail="Team not found")
+
     # Create project
     project = Project(
         portfolio_id=portfolio.id,
         owner_id=current_user.id,
-        owner_name=current_user.full_name or current_user.email,
         name=name.strip(),
-        team=team.strip() or None,
+        team_id=parsed_team_id,
         domain=domain.strip() or None,
         status=ProjectStatus.planning,
         started_at=_parse_date(started_at),
@@ -771,6 +795,8 @@ def get_project(
             .selectinload(Formulation.properties),
             selectinload(Project.formulations)
             .selectinload(Formulation.iteration),
+            selectinload(Project.team),
+            selectinload(Project.owner),
         )
     )
     project = db.scalar(stmt)
@@ -812,8 +838,8 @@ def get_project(
     return ProjectDetail(
         id=project.id,
         name=project.name,
-        team=project.team,
-        owner_name=project.owner_name,
+        team_name=project.team.name if project.team else None,
+        owner_name=_owner_display(project.owner),
         status=project.status,
         started_at=project.started_at,
         ends_at=project.ends_at,
