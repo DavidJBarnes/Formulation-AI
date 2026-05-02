@@ -67,6 +67,22 @@ def get_current_admin(current_user: User = Depends(get_current_user)) -> User:
     return current_user
 
 
+def require_ability(ability_key: str):
+    """Dependency factory — checks that the current user is admin or has the named ability."""
+
+    def check(current_user: User = Depends(get_current_user)) -> User:
+        if current_user.is_admin:
+            return current_user
+        if ability_key not in (current_user.abilities or []):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Ability '{ability_key}' required",
+            )
+        return current_user
+
+    return check
+
+
 def authenticate(db: Session, email: str, password: str) -> User | None:
     user = db.query(User).filter(User.email == email).first()
     if not user or not user.password_hash:

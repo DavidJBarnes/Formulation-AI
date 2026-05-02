@@ -1,14 +1,19 @@
-"""Admin router — user/ability management. All routes require is_admin."""
+"""Admin router — user/ability management.
+
+Ability management routes require is_admin.
+User management routes require manage_users ability (or is_admin).
+"""
 
 from __future__ import annotations
 
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy import exc as sa_exc
 from sqlalchemy.orm import Session
 
-from formulation_ai.auth import get_current_admin
+from formulation_ai.auth import get_current_admin, hash_password, require_ability
 from formulation_ai.db import get_db
 from formulation_ai.models import Ability, User, UserAbility
 
@@ -35,9 +40,19 @@ class UserWithAbilities(BaseModel):
     id: uuid.UUID
     email: str
     full_name: str | None
+    first_name: str | None = None
+    last_name: str | None = None
     is_active: bool
     is_admin: bool
     abilities: list[str] = []
+
+
+class AdminUserCreate(BaseModel):
+    email: str = Field(min_length=1, max_length=320)
+    password: str = Field(min_length=6, max_length=128)
+    first_name: str | None = None
+    last_name: str | None = None
+    is_admin: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -113,3 +128,64 @@ def revoke_ability(
     if row:
         db.delete(row)
         db.commit()
+
+
+# ---------------------------------------------------------------------------
+# User management (requires manage_users ability)
+# ---------------------------------------------------------------------------
+
+@router.post(
+    "/users",
+    response_model=UserWithAbilities,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_user(
+    payload: AdminUserCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_ability("manage_users")),
+) -> User:
+    # Only admins may create admin accounts
+    if payload.is_admin and not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can create admin accounts",
+        )
+    user = User(
+        email=payload.email,
+        password_hash=hash_password(payload.password),
+        first_name=payload.first_name,
+        last_name=payload.last_name,
+        full_name=_build_full_name(payload.first_name, payload.last_name),
+        is_admin=payload.is_admin,
+    )
+    db.add(user)
+    try:
+        db.commit()
+    except sa_exc.IntegrityError as err:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="email already registered") from err
+    db.refresh(user)
+    return user
+
+
+@router.delete(
+    "/users/{user_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_user(
+    user_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_ability("manage_users")),
+) -> None:
+    if user_id == current_user.id:
+        raise HTTPException(status_code=400, detail="cannot delete yourself")
+    user = db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    db.delete(user)
+    db.commit()
+
+
+def _build_full_name(first_name: str | None, last_name: str | None) -> str | None:
+    parts = [p for p in (first_name, last_name) if p]
+    return " ".join(parts) if parts else None
