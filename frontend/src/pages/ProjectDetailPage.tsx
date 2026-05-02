@@ -41,6 +41,7 @@ interface ApiIterationSummary {
   n: number
   best_objective: number | null
   status: string
+  started_at: string | null
   note?: string | null
 }
 
@@ -121,7 +122,7 @@ function adaptProjectDetail(api: ApiProjectDetail): ProjectDetail {
     })),
     iterations: api.iterations.map((it) => ({
       n: it.n,
-      date: '',
+      date: it.started_at ? new Date(it.started_at).toLocaleDateString() : '',
       candidates: 0,
       bestObjective: it.best_objective ?? 0,
       status: adaptIterationStatus(it.status),
@@ -692,7 +693,10 @@ function IterationCard({
         <span className="text-xs font-semibold uppercase tracking-wider">I{iteration.n}</span>
         <Icon className="h-3.5 w-3.5" />
       </div>
-      <p className="mt-3 text-[10px] uppercase tracking-wider opacity-70">Best objective</p>
+      {iteration.date && (
+        <p className="mt-1 text-[10px] text-muted-foreground">{iteration.date}</p>
+      )}
+      <p className="mt-2 text-[10px] uppercase tracking-wider opacity-70">Best objective</p>
       <p className="text-xl font-semibold tabular-nums text-foreground">
         {iteration.bestObjective > 0 ? `${Math.round(iteration.bestObjective * 100)}%` : '—'}
       </p>
