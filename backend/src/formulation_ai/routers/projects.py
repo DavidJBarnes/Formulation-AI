@@ -6,7 +6,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from formulation_ai.auth import get_current_user
@@ -197,6 +197,7 @@ def _project_to_list_item(project: Project) -> ProjectListItem:
                 best_objective=it.best_objective,
                 status=it.status,
                 note=it.note,
+                started_at=it.started_at,
             )
             for it in iterations_sorted
         ],
@@ -489,6 +490,7 @@ def run_iteration(
         project_id=project.id,
         n=next_n,
         status=IterationStatus.in_progress,
+        started_at=func.now(),
     )
     db.add(iteration)
     db.flush()
@@ -658,6 +660,7 @@ def log_results(
             project_id=project.id,
             n=body.iteration_n,
             status=IterationStatus.in_progress,
+            started_at=func.now(),
         )
         db.add(iteration)
         db.flush()
@@ -850,7 +853,7 @@ def get_project(
         targets_total=targets_total,
         flag_note=project.flag_note,
         iterations=[
-            IterationSummary(n=it.n, best_objective=it.best_objective, status=it.status, note=it.note)
+            IterationSummary(n=it.n, best_objective=it.best_objective, status=it.status, note=it.note, started_at=it.started_at)
             for it in iterations_sorted
         ],
         ingredients=[

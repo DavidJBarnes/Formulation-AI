@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date
+from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict
 
@@ -13,6 +13,7 @@ class IterationSummary(BaseModel):
     best_objective: float | None
     status: str
     note: str | None = None
+    started_at: datetime | None = None
 
 
 class IngredientSpec(BaseModel):
