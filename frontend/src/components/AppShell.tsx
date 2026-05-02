@@ -33,7 +33,7 @@ const secondaryNav = [
 
 export function AppShell() {
   const navigate = useNavigate()
-  const { user, logout } = useAuth()
+  const { user, logout, hasAbility } = useAuth()
   const displayName = user?.full_name || user?.email?.split('@')[0] || 'Researcher'
   const initials = displayName
     .split(/[\s.]+/)
@@ -60,7 +60,7 @@ export function AppShell() {
             <p className="mt-6 px-3 pb-1.5 pt-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
               System
             </p>
-            {user?.is_admin && (
+            {(user?.is_admin || hasAbility('manage_users')) && (
               <NavItem to="/settings" label="Settings" icon={Settings} />
             )}
             {secondaryNav.map((item) => (

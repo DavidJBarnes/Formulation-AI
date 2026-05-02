@@ -9,6 +9,9 @@ class UserCreate(BaseModel):
     email: str = Field(min_length=1, max_length=320)
     password: str = Field(min_length=6, max_length=128)
     full_name: str | None = None
+    first_name: str | None = None
+    last_name: str | None = None
+    is_admin: bool = False
 
 
 class UserRead(BaseModel):
@@ -17,6 +20,8 @@ class UserRead(BaseModel):
     id: uuid.UUID
     email: str
     full_name: str | None
+    first_name: str | None = None
+    last_name: str | None = None
     is_active: bool
     is_admin: bool
     abilities: list[str] = []
