@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 
 from formulation_ai.auth import get_current_user, require_ability
@@ -22,7 +22,7 @@ class TeamOut(BaseModel):
 
 
 class TeamCreate(BaseModel):
-    name: str
+    name: str = Field(min_length=1, max_length=128)
 
 
 @router.get("", response_model=list[TeamOut])

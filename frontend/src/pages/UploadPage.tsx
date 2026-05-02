@@ -48,7 +48,7 @@ export function UploadPage() {
   useEffect(() => {
     apiFetch<{ id: string; name: string }[]>('/teams')
       .then(setTeams)
-      .catch(() => {})
+      .catch((e) => console.error('Failed to load teams:', e))
   }, [])
 
   async function parseFile(f: File) {

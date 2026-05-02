@@ -23,6 +23,7 @@ from formulation_ai.models import (
     ProjectIngredient,
     ProjectStatus,
     ProjectTarget,
+    Team,
     User,
 )
 from formulation_ai.models.iteration import Iteration, IterationStatus
@@ -166,7 +167,8 @@ def _targets_met(
 def _owner_display(owner: User | None) -> str | None:
     if not owner:
         return None
-    return owner.full_name or owner.email
+    display = owner.full_name or owner.email
+    return display or None
 
 
 def _project_to_list_item(project: Project) -> ProjectListItem:
@@ -336,17 +338,26 @@ async def upload_project(
             return None
 
     def _parse_team_id(s: str) -> uuid.UUID | None:
-        try:
-            return uuid.UUID(s.strip()) if s.strip() else None
-        except ValueError:
+        stripped = s.strip()
+        if not stripped:
             return None
+        try:
+            return uuid.UUID(stripped)
+        except ValueError:
+            raise HTTPException(status_code=422, detail="Invalid team_id format") from None
+
+    parsed_team_id = _parse_team_id(team_id)
+
+    # Validate team exists if an ID was provided
+    if parsed_team_id is not None and not db.get(Team, parsed_team_id):
+        raise HTTPException(status_code=404, detail="Team not found")
 
     # Create project
     project = Project(
         portfolio_id=portfolio.id,
         owner_id=current_user.id,
         name=name.strip(),
-        team_id=_parse_team_id(team_id),
+        team_id=parsed_team_id,
         domain=domain.strip() or None,
         status=ProjectStatus.planning,
         started_at=_parse_date(started_at),
