@@ -46,6 +46,7 @@
     * inventory
     * check in/out
     * expiration
+3. Batch
 
 **_Workflow Related_** tasks/review/requests to resemble actual R&D workflow and collaboration
 1. Task
