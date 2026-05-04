@@ -652,7 +652,8 @@ function ProviderSettings() {
       const data = await apiFetch<ProviderSettingsData>('/admin/settings')
       setSettings(data)
       setProvider(data.provider)
-      setModel(data.model)
+      // Ensure model is never empty; fall back to provider default
+      setModel(data.model || PROVIDER_DEFAULTS[data.provider] || 'claude-sonnet-4-6')
       setApiKey('')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load settings')
@@ -702,6 +703,8 @@ function ProviderSettings() {
 
   const defaultModel = PROVIDER_DEFAULTS[provider]
   const modelOptions = PROVIDER_MODELS[provider] || []
+  // Resolve to a valid option: current model if in list, else default
+  const resolvedModel = modelOptions.includes(model) ? model : defaultModel
 
   if (loading) {
     return (
@@ -805,7 +808,7 @@ function ProviderSettings() {
         <div className="space-y-1.5">
           <label className="text-sm font-medium">Model</label>
           <select
-            value={model}
+            value={resolvedModel}
             onChange={(e) => setModel(e.target.value)}
             className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
           >
