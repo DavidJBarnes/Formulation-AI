@@ -57,12 +57,28 @@ jobs:
             --timeout-seconds 300 \
             --parameters commands='[
               "set -e",
-              "docker image prune -af",
+              "echo === Pulling image ===",
               "aws ecr get-login-password --region '"$AWS_REGION"' | docker login --username AWS --password-stdin '"$ECR_REGISTRY"'",
               "docker pull '"$IMAGE"'",
-              "docker stop '"$CONTAINER_NGINX"' || true && docker rm '"$CONTAINER_NGINX"' || true",
+              "echo === Stopping old container ===",
+              "docker stop '"$CONTAINER_NGINX"' 2>/dev/null || echo No old container",
+              "echo === Starting new container ===",
+              "docker rm '"$CONTAINER_NGINX"' 2>/dev/null || true",
               "docker run -d --name '"$CONTAINER_NGINX"' --restart unless-stopped -p 127.0.0.1:'"$NGINX_PORT"':80 '"$IMAGE"'",
-              "for i in 1 2 3 4 5 6; do curl -sf http://127.0.0.1:'"$NGINX_PORT"'/ -o /dev/null && echo \"Nginx OK\" && exit 0; echo \"Attempt $i failed, waiting 5s...\"; sleep 5; done; echo \"Nginx health check failed\"; exit 1"
+              "echo === Health-checking ===",
+              "for i in 1 2 3 4 5 6; do curl -sf http://127.0.0.1:'"$NGINX_PORT"'/ -o /dev/null && echo Nginx OK && break; echo Attempt $i, waiting 5s...; sleep 5; done",
+              "if curl -sf http://127.0.0.1:'"$NGINX_PORT"'/ -o /dev/null; then",
+              "  echo === Deploy successful, cleaning up old images ===",
+              "  docker image prune -af",
+              "else",
+              "  echo === FAILED: rolling back to previous image ===",
+              "  docker logs --tail 30 '"$CONTAINER_NGINX"' 2>/dev/null",
+              "  docker rm -f '"$CONTAINER_NGINX"'",
+              "  docker run -d --name '"$CONTAINER_NGINX"' --restart unless-stopped -p 127.0.0.1:'"$NGINX_PORT"':80 791342033319.dkr.ecr.us-west-2.amazonaws.com/formulation-ai-nginx:latest",
+              "  echo === Rollback complete ===",
+              "  exit 1",
+              "fi",
+              "echo === Deploy complete ==="
             ]' \
             --query 'Command.CommandId' \
             --output text)

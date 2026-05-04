@@ -58,13 +58,30 @@ jobs:
             --timeout-seconds 600 \
             --parameters commands='[
               "set -e",
-              "docker image prune -af",
+              "echo === Pulling image ===",
               "aws ecr get-login-password --region '"$AWS_REGION"' | docker login --username AWS --password-stdin '"$ECR_REGISTRY"'",
               "docker pull '"$IMAGE"'",
+              "echo === Running migrations ===",
               "docker run --rm --network host --env-file '"$ENV_FILE"' '"$IMAGE"' alembic upgrade head",
-              "docker stop '"$CONTAINER_BACKEND"' || true && docker rm '"$CONTAINER_BACKEND"' || true",
+              "echo === Stopping old container ===",
+              "docker stop '"$CONTAINER_BACKEND"' 2>/dev/null || echo No old container",
+              "echo === Starting new container ===",
+              "docker rm '"$CONTAINER_BACKEND"' 2>/dev/null || true",
               "docker run -d --name '"$CONTAINER_BACKEND"' --restart unless-stopped --network host --env-file '"$ENV_FILE"' '"$IMAGE"' uvicorn formulation_ai.app:app --host 127.0.0.1 --port '"$BACKEND_PORT"' --proxy-headers --forwarded-allow-ips=*",
-              "for i in 1 2 3 4 5 6 7 8 9 10; do curl -sf http://127.0.0.1:'"$BACKEND_PORT"'/health && echo \"Health check passed\" && exit 0; echo \"Attempt $i failed, waiting 5s...\"; sleep 5; done; echo \"Health check failed\"; exit 1"
+              "echo === Health-checking ===",
+              "for i in 1 2 3 4 5 6 7 8 9 10; do curl -sf http://127.0.0.1:'"$BACKEND_PORT"'/health && echo Health OK && break; echo Attempt $i, waiting 5s...; sleep 5; done",
+              "if curl -sf http://127.0.0.1:'"$BACKEND_PORT"'/health; then",
+              "  echo === Deploy successful, cleaning up old images ===",
+              "  docker image prune -af",
+              "else",
+              "  echo === FAILED: rolling back to previous image ===",
+              "  docker logs --tail 30 '"$CONTAINER_BACKEND"' 2>/dev/null",
+              "  docker rm -f '"$CONTAINER_BACKEND"'",
+              "  docker run -d --name '"$CONTAINER_BACKEND"' --restart unless-stopped --network host --env-file '"$ENV_FILE"' 791342033319.dkr.ecr.us-west-2.amazonaws.com/formulation-ai-backend:latest uvicorn formulation_ai.app:app --host 127.0.0.1 --port '"$BACKEND_PORT"' --proxy-headers --forwarded-allow-ips=*",
+              "  echo === Rollback complete ===",
+              "  exit 1",
+              "fi",
+              "echo === Deploy complete ==="
             ]' \
             --query 'Command.CommandId' \
             --output text)
