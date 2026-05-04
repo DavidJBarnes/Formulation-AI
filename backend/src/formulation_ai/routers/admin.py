@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from formulation_ai.auth import get_current_admin, hash_password, require_ability
 from formulation_ai.db import get_db
-from formulation_ai.models import Ability, User, UserAbility
+from formulation_ai.models import Ability, AppSetting, User, UserAbility
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -189,3 +189,96 @@ def delete_user(
 def _build_full_name(first_name: str | None, last_name: str | None) -> str | None:
     parts = [p for p in (first_name, last_name) if p]
     return " ".join(parts) if parts else None
+
+
+# ---------------------------------------------------------------------------
+# App settings schemas
+# ---------------------------------------------------------------------------
+
+class ProviderSettingsOut(BaseModel):
+    """Returned by GET /admin/settings — masks the actual API key."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    provider: str
+    api_key_set: bool
+    model: str
+
+
+class ProviderSettingsIn(BaseModel):
+    """Accepted by PUT /admin/settings."""
+
+    provider: str
+    api_key: str | None = None
+    model: str | None = None
+
+
+# ---------------------------------------------------------------------------
+# App settings endpoints (admin only)
+# ---------------------------------------------------------------------------
+
+@router.get("/settings", response_model=ProviderSettingsOut)
+def get_settings(
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_admin),
+) -> ProviderSettingsOut:
+    """Return current LLM provider configuration. API key is never exposed."""
+    stored = {
+        row.key: row.value
+        for row in db.query(AppSetting).filter(
+            AppSetting.key.in_(["llm_provider", "llm_api_key", "llm_model"])
+        ).all()
+    }
+
+    provider = stored.get("llm_provider", "anthropic")
+    api_key_set = bool(stored.get("llm_api_key"))
+    model = stored.get("llm_model")
+    if model is None:
+        model = "claude-sonnet-4-6" if provider == "anthropic" else "deepseek-chat"
+
+    return ProviderSettingsOut(
+        provider=provider,
+        api_key_set=api_key_set,
+        model=model,
+    )
+
+
+@router.put("/settings", response_model=ProviderSettingsOut)
+def update_settings(
+    payload: ProviderSettingsIn,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_admin),
+) -> ProviderSettingsOut:
+    """Update LLM provider configuration."""
+    if payload.provider not in ("anthropic", "deepseek"):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="provider must be 'anthropic' or 'deepseek'",
+        )
+
+    def _upsert(key: str, value: str) -> None:
+        row = db.get(AppSetting, key)
+        if row:
+            row.value = value
+        else:
+            db.add(AppSetting(key=key, value=value))
+
+    _upsert("llm_provider", payload.provider)
+
+    if payload.api_key is not None:
+        _upsert("llm_api_key", payload.api_key)
+
+    if payload.model is not None:
+        _upsert("llm_model", payload.model)
+
+    db.commit()
+
+    api_key_set = bool(
+        db.get(AppSetting, "llm_api_key")
+        and db.get(AppSetting, "llm_api_key").value  # type: ignore[union-attr]
+    )
+    return ProviderSettingsOut(
+        provider=payload.provider,
+        api_key_set=api_key_set,
+        model=payload.model or ("claude-sonnet-4-6" if payload.provider == "anthropic" else "deepseek-chat"),
+    )

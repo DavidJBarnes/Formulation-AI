@@ -304,7 +304,7 @@ def test_llm_fallback_when_below_threshold(monkeypatch):
 
     called_llm = []
 
-    def fake_llm(req):
+    def fake_llm(req, db_session=None):
         called_llm.append(True)
         return [ProposedFormulation("P-1-1", "test", {}, [])]
 

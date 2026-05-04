@@ -578,7 +578,7 @@ def run_iteration(
     )
 
     try:
-        proposals = run_proposal(req)
+        proposals = run_proposal(req, db_session=db)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"LLM proposal failed: {exc}") from exc
 

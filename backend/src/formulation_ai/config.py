@@ -14,8 +14,12 @@ class Settings(BaseSettings):
 
     cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
-    anthropic_api_key: str | None = None
-    anthropic_model: str = "claude-sonnet-4-6"
+    # LLM provider settings (env vars win, DB falls back)
+    anthropic_api_key: str | None = None  # legacy — prefer FA_LLM_API_KEY
+    anthropic_model: str = "claude-sonnet-4-6"  # legacy — prefer FA_LLM_MODEL
+    llm_provider: str = "anthropic"  # "anthropic" | "deepseek"
+    llm_api_key: str | None = None
+    llm_model: str | None = None
 
     # Optimizer (Phase 2)
     optimizer_backend: str = "llm"  # "llm" | "gp_sklearn" | "gp_botorch"
@@ -29,3 +33,55 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+# Default models per provider
+_PROVIDER_DEFAULTS: dict[str, str] = {
+    "anthropic": "claude-sonnet-4-6",
+    "deepseek": "deepseek-chat",
+}
+
+
+def get_llm_config(db_session=None) -> tuple[str, str | None, str]:
+    """Resolve (provider, api_key, model) with env-over-DB precedence.
+
+    Returns a 3-tuple of (provider, api_key, model).
+    api_key may be None if not configured (the caller should raise a clear error).
+    """
+    provider = settings.llm_provider
+    api_key: str | None = settings.llm_api_key
+    model: str | None = settings.llm_model
+
+    # Fall back to DB if any value is at its default and a session is provided
+    if db_session is not None and (provider == "anthropic" or api_key is None or model is None):
+        from sqlalchemy import select
+        from formulation_ai.models.app_setting import AppSetting
+
+        stored_provider = db_session.scalar(
+            select(AppSetting.value).where(AppSetting.key == "llm_provider")
+        )
+        if stored_provider:
+            provider = stored_provider
+
+        if api_key is None:
+            stored_key = db_session.scalar(
+                select(AppSetting.value).where(AppSetting.key == "llm_api_key")
+            )
+            if stored_key:
+                api_key = stored_key
+
+        if model is None:
+            stored_model = db_session.scalar(
+                select(AppSetting.value).where(AppSetting.key == "llm_model")
+            )
+            if stored_model:
+                model = stored_model
+
+    # Legacy fallback: FA_ANTHROPIC_API_KEY when provider is anthropic
+    if provider == "anthropic" and api_key is None and settings.anthropic_api_key:
+        api_key = settings.anthropic_api_key
+
+    # If model is still None, use provider default
+    if model is None:
+        model = _PROVIDER_DEFAULTS.get(provider, "claude-sonnet-4-6")
+
+    return provider, api_key, model
