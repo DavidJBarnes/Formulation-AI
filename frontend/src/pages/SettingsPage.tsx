@@ -609,6 +609,24 @@ function UserAbilitiesMatrix() {
 // LLM Provider Settings (admin only)
 // ---------------------------------------------------------------------------
 
+const PROVIDER_MODELS: Record<string, string[]> = {
+  anthropic: [
+    'claude-sonnet-4-6',
+    'claude-sonnet-4-5',
+    'claude-opus-4-7',
+    'claude-haiku-4-5',
+  ],
+  deepseek: [
+    'deepseek-v4-pro',
+    'deepseek-v4-flash',
+  ],
+}
+
+const PROVIDER_DEFAULTS: Record<string, string> = {
+  anthropic: 'claude-sonnet-4-6',
+  deepseek: 'deepseek-v4-pro',
+}
+
 interface ProviderSettingsData {
   provider: string
   api_key_set: boolean
@@ -664,7 +682,7 @@ function ProviderSettings() {
     try {
       const body: Record<string, string> = { provider }
       if (apiKey.trim()) body.api_key = apiKey.trim()
-      body.model = model.trim() || (provider === 'anthropic' ? 'claude-sonnet-4-6' : 'deepseek-v4-pro')
+      body.model = model.trim() || PROVIDER_DEFAULTS[provider]
 
       const data = await apiFetch<ProviderSettingsData>('/admin/settings', {
         method: 'PUT',
@@ -682,7 +700,8 @@ function ProviderSettings() {
     }
   }
 
-  const modelPlaceholder = provider === 'anthropic' ? 'claude-sonnet-4-6' : 'deepseek-v4-pro'
+  const defaultModel = PROVIDER_DEFAULTS[provider]
+  const modelOptions = PROVIDER_MODELS[provider] || []
 
   if (loading) {
     return (
@@ -727,7 +746,7 @@ function ProviderSettings() {
               type="button"
               onClick={() => {
                 setProvider('anthropic')
-                if (model === 'deepseek-chat' || model === 'deepseek-v4-pro' || model === '') setModel('claude-sonnet-4-6')
+                setModel(PROVIDER_DEFAULTS['anthropic'])
               }}
               className={`flex-1 rounded-lg border px-4 py-3 text-sm font-medium transition-colors ${
                 provider === 'anthropic'
@@ -741,7 +760,7 @@ function ProviderSettings() {
               type="button"
               onClick={() => {
                 setProvider('deepseek')
-                if (model === 'claude-sonnet-4-6' || model === '') setModel('deepseek-v4-pro')
+                setModel(PROVIDER_DEFAULTS['deepseek'])
               }}
               className={`flex-1 rounded-lg border px-4 py-3 text-sm font-medium transition-colors ${
                 provider === 'deepseek'
@@ -785,15 +804,26 @@ function ProviderSettings() {
         {/* Model */}
         <div className="space-y-1.5">
           <label className="text-sm font-medium">Model</label>
-          <Input
-            type="text"
+          <select
             value={model}
             onChange={(e) => setModel(e.target.value)}
-            placeholder={modelPlaceholder}
-          />
-          <p className="text-xs text-muted-foreground">
-            Default: {modelPlaceholder}
-          </p>
+            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+          >
+            {modelOptions.map((m) => (
+              <option key={m} value={m}>
+                {m}{m === defaultModel ? ' (default)' : ''}
+              </option>
+            ))}
+            {/* If current model is not in the predefined list, show it */}
+            {model && !modelOptions.includes(model) && (
+              <option value={model}>{model}</option>
+            )}
+          </select>
+          {model && !modelOptions.includes(model) && (
+            <p className="text-xs text-muted-foreground">
+              Custom model — not in the standard list for {provider === 'anthropic' ? 'Anthropic' : 'DeepSeek'}.
+            </p>
+          )}
         </div>
 
         {/* Save */}
