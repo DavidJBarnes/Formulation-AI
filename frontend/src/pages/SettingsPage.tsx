@@ -629,9 +629,6 @@ function ProviderSettings() {
   const [model, setModel] = useState('')
   const [showKey, setShowKey] = useState(false)
 
-  // Only admins can access
-  if (!user?.is_admin) return null
-
   const loadSettings = async () => {
     try {
       const data = await apiFetch<ProviderSettingsData>('/admin/settings')
@@ -656,6 +653,9 @@ function ProviderSettings() {
     }
     void init()
   }, [])
+
+  // Only admins can access — return null after all hooks are declared
+  if (!user?.is_admin) return null
 
   const handleSave = async () => {
     setError(null)

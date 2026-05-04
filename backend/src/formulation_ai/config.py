@@ -54,6 +54,7 @@ def get_llm_config(db_session=None) -> tuple[str, str | None, str]:
     # Fall back to DB if any value is at its default and a session is provided
     if db_session is not None and (provider == "anthropic" or api_key is None or model is None):
         from sqlalchemy import select
+
         from formulation_ai.models.app_setting import AppSetting
 
         stored_provider = db_session.scalar(

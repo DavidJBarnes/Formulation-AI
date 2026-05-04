@@ -252,7 +252,7 @@ def update_settings(
     """Update LLM provider configuration."""
     if payload.provider not in ("anthropic", "deepseek"):
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="provider must be 'anthropic' or 'deepseek'",
         )
 

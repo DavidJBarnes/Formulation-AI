@@ -15,7 +15,6 @@ from formulation_ai.routers.admin import (
     update_settings,
 )
 
-
 # ---------------------------------------------------------------------------
 # AppSetting model tests
 # ---------------------------------------------------------------------------
@@ -356,7 +355,7 @@ class TestProposalDispatch:
             return [ProposedFormulation("GP-1", "gp", {}, [])]
 
         monkeypatch.setattr("formulation_ai.optimizer.gp_proposal.run_gp_proposal", fake_gp)
-        result = proposal_engine.run_proposal(req)
+        proposal_engine.run_proposal(req)
         assert len(called_llm) == 1  # Below threshold, so LLM path taken
 
 
