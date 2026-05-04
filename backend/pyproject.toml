@@ -3,7 +3,7 @@ name = "formulation-ai"
 version = "0.1.0"
 description = "Formulation-AI backend — FastAPI + Postgres"
 authors = [
-    { name = "David J Barnes", email = "david.barnes@employbridge.com" }
+    { name = "David J Barnes", email = "nullableint@gmail.com" }
 ]
 requires-python = ">=3.12"
 dependencies = [
@@ -19,6 +19,7 @@ dependencies = [
     "python-jose[cryptography]>=3.3",
     "python-multipart>=0.0.20",
     "bcrypt<4.0",
+    "openai>=2.0.0",
     "openpyxl>=3.1.5",
     "anthropic>=0.97.0",
     "scikit-learn>=1.8.0",
@@ -31,6 +32,7 @@ formulation-ai = "formulation_ai.cli:main"
 dev = [
     "pytest>=8.3",
     "pytest-asyncio>=0.24",
+    "httpx>=0.28",
     "ruff>=0.7",
     "mypy>=1.13",
 ]

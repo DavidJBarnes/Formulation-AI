@@ -7,8 +7,9 @@ import re
 from dataclasses import dataclass
 
 import anthropic
+from openai import OpenAI
 
-from formulation_ai.config import settings
+from formulation_ai.config import get_llm_config, settings
 
 
 @dataclass
@@ -31,7 +32,10 @@ class ProposalRequest:
     batch_total_g: float | None = None
 
 
-def run_proposal(req: ProposalRequest) -> list[ProposedFormulation]:
+def run_proposal(
+    req: ProposalRequest,
+    db_session=None,
+) -> list[ProposedFormulation]:
     """Dispatch to GP or LLM backend based on settings and available data."""
     use_gp = (
         settings.optimizer_backend == "gp_sklearn"
@@ -40,7 +44,7 @@ def run_proposal(req: ProposalRequest) -> list[ProposedFormulation]:
     if use_gp:
         from formulation_ai.optimizer.gp_proposal import run_gp_proposal
         return run_gp_proposal(req)
-    return _run_llm_proposal(req)
+    return _run_llm_proposal(req, db_session=db_session)
 
 
 # ---------------------------------------------------------------------------
@@ -122,8 +126,31 @@ def _fmt_formulations(formulations: list[dict], label: str) -> str:
     return "\n".join(rows)
 
 
-def _run_llm_proposal(req: ProposalRequest) -> list[ProposedFormulation]:
-    api_key = settings.anthropic_api_key
+def _run_llm_proposal(
+    req: ProposalRequest,
+    db_session=None,
+) -> list[ProposedFormulation]:
+    """Dispatch to the configured LLM provider."""
+    provider, api_key, model = get_llm_config(db_session)
+
+    if api_key is None:
+        raise RuntimeError(
+            f"No API key configured for provider '{provider}'. "
+            "Set FA_LLM_API_KEY or configure via Settings."
+        )
+
+    if provider == "deepseek":
+        return _run_deepseek_proposal(req, api_key, model)
+
+    # Default: Anthropic
+    return _run_anthropic_proposal(req, api_key, model)
+
+
+def _run_anthropic_proposal(
+    req: ProposalRequest,
+    api_key: str | None,
+    model: str,
+) -> list[ProposedFormulation]:
     client = anthropic.Anthropic(api_key=api_key) if api_key else anthropic.Anthropic()
 
     prompt = _USER_TMPL.format(
@@ -137,13 +164,56 @@ def _run_llm_proposal(req: ProposalRequest) -> list[ProposedFormulation]:
     )
 
     response = client.messages.create(
-        model=settings.anthropic_model,
+        model=model,
         max_tokens=4096,
         system=_SYSTEM,
         messages=[{"role": "user", "content": prompt}],
     )
 
     raw = response.content[0].text.strip()
+    raw = re.sub(r"^```(?:json)?\s*", "", raw)
+    raw = re.sub(r"\s*```$", "", raw)
+
+    data = json.loads(raw)
+    return [
+        ProposedFormulation(
+            label=c["label"],
+            rationale=c.get("rationale", ""),
+            ingredients=c["ingredients"],
+            predictions=c["predictions"],
+        )
+        for c in data["candidates"]
+    ]
+
+
+def _run_deepseek_proposal(
+    req: ProposalRequest,
+    api_key: str,
+    model: str,
+) -> list[ProposedFormulation]:
+    """Generate proposals using DeepSeek (OpenAI-compatible API)."""
+    client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com/v1")
+
+    prompt = _USER_TMPL.format(
+        project_name=req.project_name,
+        iteration_n=req.iteration_n,
+        ingredients_block=_fmt_ingredients(req.ingredients),
+        targets_block=_fmt_targets(req.targets),
+        base_block=_fmt_formulations(req.base_products, "base products"),
+        tested_block=_fmt_formulations(req.tested, "tested formulations"),
+        n=req.n_candidates,
+    )
+
+    response = client.chat.completions.create(
+        model=model,
+        max_tokens=4096,
+        messages=[
+            {"role": "system", "content": _SYSTEM},
+            {"role": "user", "content": prompt},
+        ],
+    )
+
+    raw = response.choices[0].message.content.strip()
     raw = re.sub(r"^```(?:json)?\s*", "", raw)
     raw = re.sub(r"\s*```$", "", raw)
 

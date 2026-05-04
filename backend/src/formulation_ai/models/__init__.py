@@ -1,4 +1,5 @@
 from formulation_ai.models.ability import Ability
+from formulation_ai.models.app_setting import AppSetting
 from formulation_ai.models.base import Base
 from formulation_ai.models.formulation import Formulation, FormulationKind
 from formulation_ai.models.ingredient import FormulationIngredient, Ingredient, ProjectIngredient
@@ -11,6 +12,7 @@ from formulation_ai.models.user import User
 from formulation_ai.models.user_ability import UserAbility
 
 __all__ = [
+    "AppSetting",
     "Base",
     "User",
     "Ability",

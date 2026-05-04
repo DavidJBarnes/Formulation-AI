@@ -15,7 +15,8 @@ from sqlalchemy.orm import Session
 
 from formulation_ai.auth import get_current_admin, hash_password, require_ability
 from formulation_ai.db import get_db
-from formulation_ai.models import Ability, User, UserAbility
+from formulation_ai.models import Ability, AppSetting, User, UserAbility
+from formulation_ai.services.crypto import encrypt
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -189,3 +190,123 @@ def delete_user(
 def _build_full_name(first_name: str | None, last_name: str | None) -> str | None:
     parts = [p for p in (first_name, last_name) if p]
     return " ".join(parts) if parts else None
+
+
+# ---------------------------------------------------------------------------
+# App settings schemas
+# ---------------------------------------------------------------------------
+
+class ProviderSettingsOut(BaseModel):
+    """Returned by GET /admin/settings — masks the actual API key."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    provider: str
+    api_key_set: bool
+    model: str
+
+
+class ProviderSettingsIn(BaseModel):
+    """Accepted by PUT /admin/settings."""
+
+    provider: str
+    api_key: str | None = None
+    model: str | None = None
+
+
+# ---------------------------------------------------------------------------
+# App settings endpoints (admin only)
+# ---------------------------------------------------------------------------
+
+_KEY_PATTERNS: dict[str, str] = {
+    "anthropic": r"^sk-ant-",
+    "deepseek": r"^sk-",
+}
+
+
+def _validate_api_key(provider: str, key: str) -> str | None:
+    """Return an error string if the key doesn't match the provider pattern."""
+    import re
+
+    pattern = _KEY_PATTERNS.get(provider)
+    if not pattern:
+        return None  # unknown provider — validated elsewhere
+    if not re.match(pattern, key.strip()):
+        return f"API key must start with '{pattern.lstrip('^').rstrip('-')}' for {provider}"
+    return None
+
+
+@router.get("/settings", response_model=ProviderSettingsOut)
+def get_settings(
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_admin),
+) -> ProviderSettingsOut:
+    """Return current LLM provider configuration. API key is never exposed."""
+    stored = {
+        row.key: row.value
+        for row in db.query(AppSetting).filter(
+            AppSetting.key.in_(["llm_provider", "llm_api_key", "llm_model"])
+        ).all()
+    }
+
+    provider = stored.get("llm_provider", "anthropic")
+    api_key_set = bool(stored.get("llm_api_key"))
+    model = stored.get("llm_model")
+    if model is None:
+        model = "claude-sonnet-4-6" if provider == "anthropic" else "deepseek-chat"
+
+    return ProviderSettingsOut(
+        provider=provider,
+        api_key_set=api_key_set,
+        model=model,
+    )
+
+
+@router.put("/settings", response_model=ProviderSettingsOut)
+def update_settings(
+    payload: ProviderSettingsIn,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_admin),
+) -> ProviderSettingsOut:
+    """Update LLM provider configuration."""
+    if payload.provider not in ("anthropic", "deepseek"):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="provider must be 'anthropic' or 'deepseek'",
+        )
+
+    # Validate API key format
+    if payload.api_key is not None:
+        key_err = _validate_api_key(payload.provider, payload.api_key)
+        if key_err:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=key_err,
+            )
+
+    def _upsert(key: str, value: str) -> None:
+        row = db.get(AppSetting, key)
+        if row:
+            row.value = value
+        else:
+            db.add(AppSetting(key=key, value=value))
+
+    _upsert("llm_provider", payload.provider)
+
+    if payload.api_key is not None:
+        _upsert("llm_api_key", encrypt(payload.api_key))
+
+    if payload.model is not None:
+        _upsert("llm_model", payload.model)
+
+    db.commit()
+
+    # Single query for key presence (avoids double get)
+    key_row = db.get(AppSetting, "llm_api_key")
+    api_key_set = bool(key_row and key_row.value)
+
+    return ProviderSettingsOut(
+        provider=payload.provider,
+        api_key_set=api_key_set,
+        model=payload.model or ("claude-sonnet-4-6" if payload.provider == "anthropic" else "deepseek-chat"),
+    )

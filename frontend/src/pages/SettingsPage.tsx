@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Navigate } from 'react-router-dom'
-import { Check, Loader2, Plus, ShieldCheck, Trash2, UserPlus, Users } from 'lucide-react'
+import { Brain, Check, Eye, EyeOff, Loader2, Plus, ShieldCheck, Trash2, UserPlus, Users } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -51,6 +51,7 @@ export function SettingsPage() {
         <p className="mt-1 text-sm text-muted-foreground">Workspace configuration and user management.</p>
       </div>
 
+      <ProviderSettings />
       <UserManagement />
       {user?.is_admin && <UserAbilitiesMatrix />}
     </div>
@@ -599,6 +600,218 @@ function UserAbilitiesMatrix() {
             </tbody>
           </table>
         )}
+      </CardContent>
+    </Card>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// LLM Provider Settings (admin only)
+// ---------------------------------------------------------------------------
+
+interface ProviderSettingsData {
+  provider: string
+  api_key_set: boolean
+  model: string
+}
+
+function ProviderSettings() {
+  const { user } = useAuth()
+  const [settings, setSettings] = useState<ProviderSettingsData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState(false)
+
+  // Form state
+  const [provider, setProvider] = useState('anthropic')
+  const [apiKey, setApiKey] = useState('')
+  const [model, setModel] = useState('')
+  const [showKey, setShowKey] = useState(false)
+
+  const loadSettings = async () => {
+    try {
+      const data = await apiFetch<ProviderSettingsData>('/admin/settings')
+      setSettings(data)
+      setProvider(data.provider)
+      setModel(data.model)
+      setApiKey('')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load settings')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    const init = async () => {
+      try {
+        await loadSettings()
+      } catch {
+        // loadSettings sets its own error
+      }
+    }
+    void init()
+  }, [])
+
+  // Only admins can access — return null after all hooks are declared
+  if (!user?.is_admin) return null
+
+  const handleSave = async () => {
+    setError(null)
+    setSuccess(false)
+    setSaving(true)
+    try {
+      const body: Record<string, string> = { provider }
+      if (apiKey.trim()) body.api_key = apiKey.trim()
+      body.model = model.trim() || (provider === 'anthropic' ? 'claude-sonnet-4-6' : 'deepseek-chat')
+
+      const data = await apiFetch<ProviderSettingsData>('/admin/settings', {
+        method: 'PUT',
+        body,
+      })
+      setSettings(data)
+      setApiKey('')
+      setShowKey(false)
+      setSuccess(true)
+      setTimeout(() => setSuccess(false), 3000)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Save failed')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const modelPlaceholder = provider === 'anthropic' ? 'claude-sonnet-4-6' : 'deepseek-chat'
+
+  if (loading) {
+    return (
+      <Card>
+        <CardContent className="flex items-center justify-center py-12">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </CardContent>
+      </Card>
+    )
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Brain className="h-5 w-5 text-brand" />
+          AI Provider
+        </CardTitle>
+        <CardDescription className="mt-1">
+          Configure the LLM used for formulation proposals. Only one provider can be active at a time.
+        </CardDescription>
+      </CardHeader>
+
+      <CardContent className="space-y-5">
+        {error && (
+          <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            {error}
+          </div>
+        )}
+
+        {success && (
+          <div className="rounded-md border border-green-500/40 bg-green-500/10 px-4 py-3 text-sm text-green-700 dark:text-green-400">
+            Provider settings saved.
+          </div>
+        )}
+
+        {/* Provider selector */}
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Provider</label>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setProvider('anthropic')
+                if (model === 'deepseek-chat' || model === '') setModel('claude-sonnet-4-6')
+              }}
+              className={`flex-1 rounded-lg border px-4 py-3 text-sm font-medium transition-colors ${
+                provider === 'anthropic'
+                  ? 'border-brand bg-brand/10 text-brand'
+                  : 'border-border bg-background text-muted-foreground hover:border-muted-foreground/40'
+              }`}
+            >
+              Anthropic (Claude)
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setProvider('deepseek')
+                if (model === 'claude-sonnet-4-6' || model === '') setModel('deepseek-chat')
+              }}
+              className={`flex-1 rounded-lg border px-4 py-3 text-sm font-medium transition-colors ${
+                provider === 'deepseek'
+                  ? 'border-brand bg-brand/10 text-brand'
+                  : 'border-border bg-background text-muted-foreground hover:border-muted-foreground/40'
+              }`}
+            >
+              DeepSeek
+            </button>
+          </div>
+        </div>
+
+        {/* API Key */}
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">API Key</label>
+          <div className="relative">
+            <Input
+              type={showKey ? 'text' : 'password'}
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              placeholder={settings?.api_key_set ? '•••••••• (stored)' : `Enter ${provider === 'anthropic' ? 'Anthropic' : 'DeepSeek'} API key`}
+              autoComplete="off"
+              className="pr-10"
+            />
+            <button
+              type="button"
+              onClick={() => setShowKey((v) => !v)}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              title={showKey ? 'Hide key' : 'Show key'}
+            >
+              {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
+          {settings?.api_key_set && !apiKey && (
+            <p className="text-xs text-muted-foreground">
+              An API key is already stored. Leave blank to keep the current key.
+            </p>
+          )}
+        </div>
+
+        {/* Model */}
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">Model</label>
+          <Input
+            type="text"
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+            placeholder={modelPlaceholder}
+          />
+          <p className="text-xs text-muted-foreground">
+            Default: {modelPlaceholder}
+          </p>
+        </div>
+
+        {/* Save */}
+        <div className="flex items-center gap-3 pt-2">
+          <Button
+            onClick={() => void handleSave()}
+            disabled={saving}
+          >
+            {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+            Save
+          </Button>
+          {settings && (
+            <span className="text-xs text-muted-foreground">
+              Active: {settings.provider === 'anthropic' ? 'Anthropic' : 'DeepSeek'}
+              {settings.api_key_set ? ' (key set)' : ' (no key)'}
+            </span>
+          )}
+        </div>
       </CardContent>
     </Card>
   )
