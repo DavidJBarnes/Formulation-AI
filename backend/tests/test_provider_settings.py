@@ -90,10 +90,9 @@ class TestGetSettings:
 
 class TestUpdateSettings:
     def test_save_provider_config(self, monkeypatch):
-        """Successfully saves provider, key, and model."""
+        """Successfully saves provider, key, and model. Key is stored encrypted."""
         mock_db = MagicMock()
 
-        # Simulate a stateful key-value store
         store: dict[str, str] = {}
 
         def fake_get(model, key):
@@ -122,9 +121,43 @@ class TestUpdateSettings:
 
         # Verify store was populated
         assert store["llm_provider"] == "deepseek"
-        assert store["llm_api_key"] == "sk-deep-456"
+        # Key must be encrypted (Fernet token is base64, starts with gAAA)
+        assert store["llm_api_key"] != "sk-deep-456"
+        assert len(store["llm_api_key"]) > 50  # ciphertext is much longer
         assert store["llm_model"] == "deepseek-chat"
         assert mock_db.commit.called
+
+    def test_rejects_invalid_api_key_format(self, monkeypatch):
+        """API keys must match provider-specific patterns."""
+        mock_db = MagicMock()
+
+        # Anthropic key must start with sk-ant-
+        payload = ProviderSettingsIn(provider="anthropic", api_key="sk-abc123")
+        with pytest.raises(HTTPException) as exc:
+            update_settings(payload, db=mock_db, _=MagicMock())
+        assert exc.value.status_code == 422
+        assert "must start with" in exc.value.detail
+
+        # DeepSeek key must start with sk-
+        payload = ProviderSettingsIn(provider="deepseek", api_key="bad-key")
+        with pytest.raises(HTTPException) as exc:
+            update_settings(payload, db=mock_db, _=MagicMock())
+        assert exc.value.status_code == 422
+
+    def test_valid_key_formats_accepted(self, monkeypatch):
+        """Correctly formatted keys pass validation."""
+        mock_db = MagicMock()
+        mock_db.get.return_value = None  # no existing settings
+
+        # Anthropic: sk-ant- prefix
+        payload = ProviderSettingsIn(provider="anthropic", api_key="sk-ant-test123")
+        result = update_settings(payload, db=mock_db, _=MagicMock())
+        assert result.provider == "anthropic"
+
+        # DeepSeek: sk- prefix
+        payload2 = ProviderSettingsIn(provider="deepseek", api_key="sk-test456")
+        result2 = update_settings(payload2, db=mock_db, _=MagicMock())
+        assert result2.provider == "deepseek"
 
     def test_rejects_invalid_provider(self, monkeypatch):
         """Non-anthropic/non-deepseek provider raises 422."""
@@ -157,7 +190,7 @@ class TestUpdateSettings:
     def test_admin_guard_via_dependency(self, monkeypatch):
         """update_settings requires get_current_admin via Depends()."""
         mock_db = MagicMock()
-        payload = ProviderSettingsIn(provider="anthropic", api_key="sk-test")
+        payload = ProviderSettingsIn(provider="anthropic", api_key="sk-ant-test")
         # Should run without error when called directly (dependency is bypassed)
         result = update_settings(payload, db=mock_db, _=MagicMock())
         assert result.provider == "anthropic"
@@ -181,28 +214,36 @@ class TestGetLlmConfig:
         assert model == "claude-sonnet-4-6"
 
     def test_db_fallback_when_no_env(self, monkeypatch):
-        """get_llm_config falls back to DB when env vars are unset."""
+        """get_llm_config falls back to DB with single batch query + decryption."""
         from formulation_ai import config
 
+        row_provider = _make_setting_row("llm_provider", "deepseek")
+        # Key is stored encrypted; decrypt() will be called on it
+        row_key = _make_setting_row("llm_api_key", "encrypted-deepseek-key")
+        row_model = _make_setting_row("llm_model", "deepseek-chat-v3")
+
+        # Mock the scalars().all() return
+        mock_result = MagicMock()
+        mock_result.all.return_value = [row_provider, row_key, row_model]
+
         db_session = MagicMock()
+        db_session.scalars.return_value = mock_result
 
-        # scalar() is called with select(AppSetting.value).where(AppSetting.key == X)
-        # Return values based on call order: provider, api_key, model
-        db_session.scalar.side_effect = [
-            "deepseek",       # llm_provider
-            "sk-db-key",      # llm_api_key
-            "deepseek-chat",  # llm_model
-        ]
+        # Mock decrypt to return a known plaintext
+        from formulation_ai.services import crypto
 
-        monkeypatch.setattr(config.settings, "llm_provider", "anthropic")  # env default
+        monkeypatch.setattr(crypto, "decrypt", lambda v: "sk-decrypted-db-key")
+
+        monkeypatch.setattr(config.settings, "llm_provider", "anthropic")
         monkeypatch.setattr(config.settings, "llm_api_key", None)
         monkeypatch.setattr(config.settings, "llm_model", None)
 
         provider, api_key, model = get_llm_config(db_session)
-        assert provider == "deepseek"  # DB overshadows default
-        assert api_key == "sk-db-key"
-        assert model == "deepseek-chat"
-        assert db_session.scalar.call_count == 3
+        assert provider == "deepseek"
+        assert api_key == "sk-decrypted-db-key"
+        assert model == "deepseek-chat-v3"
+        # Only one query issued
+        db_session.scalars.assert_called_once()
 
     def test_legacy_anthropic_key_fallback(self, monkeypatch):
         """FA_ANTHROPIC_API_KEY used when provider=anthropic and no llm_api_key."""

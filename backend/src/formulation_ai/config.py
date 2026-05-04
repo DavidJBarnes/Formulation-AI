@@ -56,26 +56,28 @@ def get_llm_config(db_session=None) -> tuple[str, str | None, str]:
         from sqlalchemy import select
 
         from formulation_ai.models.app_setting import AppSetting
+        from formulation_ai.services.crypto import decrypt
 
-        stored_provider = db_session.scalar(
-            select(AppSetting.value).where(AppSetting.key == "llm_provider")
-        )
-        if stored_provider:
-            provider = stored_provider
-
-        if api_key is None:
-            stored_key = db_session.scalar(
-                select(AppSetting.value).where(AppSetting.key == "llm_api_key")
+        # Single query for all three settings — avoids race condition
+        rows = db_session.scalars(
+            select(AppSetting).where(
+                AppSetting.key.in_(["llm_provider", "llm_api_key", "llm_model"])
             )
-            if stored_key:
-                api_key = stored_key
+        ).all()
+        stored = {row.key: row.value for row in rows}
 
-        if model is None:
-            stored_model = db_session.scalar(
-                select(AppSetting.value).where(AppSetting.key == "llm_model")
-            )
-            if stored_model:
-                model = stored_model
+        if "llm_provider" in stored:
+            provider = stored["llm_provider"]
+
+        if api_key is None and "llm_api_key" in stored:
+            try:
+                api_key = decrypt(stored["llm_api_key"])
+            except Exception:
+                # Corrupted or legacy plaintext — treat as None
+                api_key = None
+
+        if model is None and "llm_model" in stored:
+            model = stored["llm_model"]
 
     # Legacy fallback: FA_ANTHROPIC_API_KEY when provider is anthropic
     if provider == "anthropic" and api_key is None and settings.anthropic_api_key:

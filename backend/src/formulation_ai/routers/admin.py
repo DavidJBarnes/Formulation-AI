@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from formulation_ai.auth import get_current_admin, hash_password, require_ability
 from formulation_ai.db import get_db
 from formulation_ai.models import Ability, AppSetting, User, UserAbility
+from formulation_ai.services.crypto import encrypt
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -217,6 +218,24 @@ class ProviderSettingsIn(BaseModel):
 # App settings endpoints (admin only)
 # ---------------------------------------------------------------------------
 
+_KEY_PATTERNS: dict[str, str] = {
+    "anthropic": r"^sk-ant-",
+    "deepseek": r"^sk-",
+}
+
+
+def _validate_api_key(provider: str, key: str) -> str | None:
+    """Return an error string if the key doesn't match the provider pattern."""
+    import re
+
+    pattern = _KEY_PATTERNS.get(provider)
+    if not pattern:
+        return None  # unknown provider — validated elsewhere
+    if not re.match(pattern, key.strip()):
+        return f"API key must start with '{pattern.lstrip('^').rstrip('-')}' for {provider}"
+    return None
+
+
 @router.get("/settings", response_model=ProviderSettingsOut)
 def get_settings(
     db: Session = Depends(get_db),
@@ -256,6 +275,15 @@ def update_settings(
             detail="provider must be 'anthropic' or 'deepseek'",
         )
 
+    # Validate API key format
+    if payload.api_key is not None:
+        key_err = _validate_api_key(payload.provider, payload.api_key)
+        if key_err:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=key_err,
+            )
+
     def _upsert(key: str, value: str) -> None:
         row = db.get(AppSetting, key)
         if row:
@@ -266,17 +294,17 @@ def update_settings(
     _upsert("llm_provider", payload.provider)
 
     if payload.api_key is not None:
-        _upsert("llm_api_key", payload.api_key)
+        _upsert("llm_api_key", encrypt(payload.api_key))
 
     if payload.model is not None:
         _upsert("llm_model", payload.model)
 
     db.commit()
 
-    api_key_set = bool(
-        db.get(AppSetting, "llm_api_key")
-        and db.get(AppSetting, "llm_api_key").value  # type: ignore[union-attr]
-    )
+    # Single query for key presence (avoids double get)
+    key_row = db.get(AppSetting, "llm_api_key")
+    api_key_set = bool(key_row and key_row.value)
+
     return ProviderSettingsOut(
         provider=payload.provider,
         api_key_set=api_key_set,
