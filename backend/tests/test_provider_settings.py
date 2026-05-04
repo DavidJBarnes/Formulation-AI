@@ -265,12 +265,12 @@ class TestGetLlmConfig:
 
         monkeypatch.setattr(config.settings, "llm_provider", "deepseek")
         monkeypatch.setattr(config.settings, "llm_api_key", "sk-env")
-        monkeypatch.setattr(config.settings, "llm_model", "deepseek-chat")
+        monkeypatch.setattr(config.settings, "llm_model", "deepseek-v4-pro")
 
         provider, api_key, model = get_llm_config()
         assert provider == "deepseek"
         assert api_key == "sk-env"
-        assert model == "deepseek-chat"
+        assert model == "deepseek-v4-pro"
 
 
 # ---------------------------------------------------------------------------
@@ -332,7 +332,7 @@ class TestProposalDispatch:
         monkeypatch.setattr(proposal_engine, "_run_deepseek_proposal", fake_deepseek)
         monkeypatch.setattr(proposal_engine.settings, "llm_provider", "deepseek")
         monkeypatch.setattr(proposal_engine.settings, "llm_api_key", "sk-deep")
-        monkeypatch.setattr(proposal_engine.settings, "llm_model", "deepseek-chat")
+        monkeypatch.setattr(proposal_engine.settings, "llm_model", "deepseek-v4-pro")
 
         req = ProposalRequest(
             project_name="Test",
@@ -345,7 +345,7 @@ class TestProposalDispatch:
         proposal_engine.run_proposal(req)
         assert len(called_anthropic) == 0
         assert len(called_deepseek) == 1
-        assert called_deepseek[0] == ("sk-deep", "deepseek-chat")
+        assert called_deepseek[0] == ("sk-deep", "deepseek-v4-pro")
 
     def test_missing_api_key_raises(self, monkeypatch):
         """run_proposal raises RuntimeError when no API key is configured."""
@@ -354,7 +354,7 @@ class TestProposalDispatch:
 
         monkeypatch.setattr(proposal_engine.settings, "llm_provider", "deepseek")
         monkeypatch.setattr(proposal_engine.settings, "llm_api_key", None)
-        monkeypatch.setattr(proposal_engine.settings, "llm_model", "deepseek-chat")
+        monkeypatch.setattr(proposal_engine.settings, "llm_model", "deepseek-v4-pro")
         monkeypatch.setattr("formulation_ai.config.settings.anthropic_api_key", None)
 
         req = ProposalRequest(

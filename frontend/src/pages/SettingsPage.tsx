@@ -664,7 +664,7 @@ function ProviderSettings() {
     try {
       const body: Record<string, string> = { provider }
       if (apiKey.trim()) body.api_key = apiKey.trim()
-      body.model = model.trim() || (provider === 'anthropic' ? 'claude-sonnet-4-6' : 'deepseek-chat')
+      body.model = model.trim() || (provider === 'anthropic' ? 'claude-sonnet-4-6' : 'deepseek-v4-pro')
 
       const data = await apiFetch<ProviderSettingsData>('/admin/settings', {
         method: 'PUT',
@@ -682,7 +682,7 @@ function ProviderSettings() {
     }
   }
 
-  const modelPlaceholder = provider === 'anthropic' ? 'claude-sonnet-4-6' : 'deepseek-chat'
+  const modelPlaceholder = provider === 'anthropic' ? 'claude-sonnet-4-6' : 'deepseek-v4-pro'
 
   if (loading) {
     return (
@@ -727,7 +727,7 @@ function ProviderSettings() {
               type="button"
               onClick={() => {
                 setProvider('anthropic')
-                if (model === 'deepseek-chat' || model === '') setModel('claude-sonnet-4-6')
+                if (model === 'deepseek-chat' || model === 'deepseek-v4-pro' || model === '') setModel('claude-sonnet-4-6')
               }}
               className={`flex-1 rounded-lg border px-4 py-3 text-sm font-medium transition-colors ${
                 provider === 'anthropic'
@@ -741,7 +741,7 @@ function ProviderSettings() {
               type="button"
               onClick={() => {
                 setProvider('deepseek')
-                if (model === 'claude-sonnet-4-6' || model === '') setModel('deepseek-chat')
+                if (model === 'claude-sonnet-4-6' || model === '') setModel('deepseek-v4-pro')
               }}
               className={`flex-1 rounded-lg border px-4 py-3 text-sm font-medium transition-colors ${
                 provider === 'deepseek'

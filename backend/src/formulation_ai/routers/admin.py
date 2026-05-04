@@ -253,7 +253,7 @@ def get_settings(
     api_key_set = bool(stored.get("llm_api_key"))
     model = stored.get("llm_model")
     if model is None:
-        model = "claude-sonnet-4-6" if provider == "anthropic" else "deepseek-chat"
+        model = "claude-sonnet-4-6" if provider == "anthropic" else "deepseek-v4-pro"
 
     return ProviderSettingsOut(
         provider=provider,
@@ -308,5 +308,5 @@ def update_settings(
     return ProviderSettingsOut(
         provider=payload.provider,
         api_key_set=api_key_set,
-        model=payload.model or ("claude-sonnet-4-6" if payload.provider == "anthropic" else "deepseek-chat"),
+        model=payload.model or ("claude-sonnet-4-6" if payload.provider == "anthropic" else "deepseek-v4-pro"),
     )
