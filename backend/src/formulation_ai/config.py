@@ -37,7 +37,7 @@ settings = Settings()
 # Default models per provider
 _PROVIDER_DEFAULTS: dict[str, str] = {
     "anthropic": "claude-sonnet-4-6",
-    "deepseek": "deepseek-chat",
+    "deepseek": "deepseek-v4-pro",
 }
 
 
